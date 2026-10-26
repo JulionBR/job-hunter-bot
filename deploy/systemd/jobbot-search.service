@@ -1,0 +1,9 @@
+[Unit]
+Description=job-hunter-bot - Daily job search for all candidates
+
+[Service]
+Type=oneshot
+User=jobbot
+WorkingDirectory=/home/jobbot/jobbot/app
+ExecStart=/usr/bin/python3 -m jobbot search
+TimeoutStartSec=6h

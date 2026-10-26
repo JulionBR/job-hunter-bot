@@ -1,0 +1,15 @@
+[Unit]
+Description=job-hunter-bot - Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jobbot
+WorkingDirectory=/home/jobbot/jobbot/app
+ExecStart=/usr/bin/python3 -m jobbot bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

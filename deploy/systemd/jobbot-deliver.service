@@ -1,0 +1,8 @@
+[Unit]
+Description=job-hunter-bot - Deliver the jobs found overnight
+
+[Service]
+Type=oneshot
+User=jobbot
+WorkingDirectory=/home/jobbot/jobbot/app
+ExecStart=/usr/bin/python3 -m jobbot deliver

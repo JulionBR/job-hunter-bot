@@ -1,0 +1,11 @@
+[Unit]
+Description=job-hunter-bot - Deliver the jobs found overnight (timer)
+
+[Timer]
+# The real delivery time is this OnCalendar. JOBBOT_DELIVERY_HOUR (env) only changes the texts and the
+# "hold results until delivery time" rule, so keep both in sync (07:00 <-> JOBBOT_DELIVERY_HOUR=7).
+OnCalendar=*-*-* 07:00 America/Sao_Paulo
+Persistent=true
+
+[Install]
+WantedBy=timers.target
