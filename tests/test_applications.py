@@ -95,7 +95,7 @@ def test_symlinked_and_outside_pdfs_are_not_sent(env: Env, tmp_path: Path) -> No
 def test_skip_and_sent_callbacks(env: Env) -> None:
     job_id = prepare(env)
     env.callback(ALICE, f"s:{job_id}")
-    assert env.telegram.answers[-1][1] == "Pulada."
+    assert env.telegram.answers[-1][1] == "Anotado. Vou evitar vagas parecidas nas próximas buscas."
     assert JobRepository(env.app.store, ALICE).get(job_id).status is JobStatus.SKIPPED  # type: ignore[union-attr]
     env.callback(ALICE, f"d:{job_id}")
     assert env.telegram.answers[-1][1].startswith("Marcada como enviada")
@@ -123,3 +123,41 @@ def test_apply_ignores_missing_job(env: Env) -> None:
     env.add_candidate()
     env.app.applications.apply_job(ALICE, "nope")
     assert env.claude.calls == []
+
+
+def test_not_interested_does_not_overwrite_a_job_in_progress(env: Env) -> None:
+    job_id = prepare(env)
+    repo = JobRepository(env.app.store, ALICE)
+    for status in (JobStatus.QUEUED, JobStatus.GENERATED, JobStatus.SENT):
+        repo.set_status(job_id, status)
+        env.telegram.cleared.clear()
+        env.callback(ALICE, f"s:{job_id}")
+        assert env.telegram.answers[-1][1] == "Essa vaga já está em andamento."
+        assert env.telegram.cleared == [(ALICE, 5)]
+        job = repo.get(job_id)
+        assert job is not None and job.status is status
+
+
+def test_not_interested_on_waiting_job_works(env: Env) -> None:
+    job_id = prepare(env)
+    JobRepository(env.app.store, ALICE).set_status(job_id, JobStatus.WAITING)
+    env.callback(ALICE, f"s:{job_id}")
+    job = JobRepository(env.app.store, ALICE).get(job_id)
+    assert job is not None and job.status is JobStatus.SKIPPED
+
+
+def test_card_button_is_not_interested_with_unchanged_callback(env: Env) -> None:
+    job_id = prepare(env)
+    card = [m for m in env.telegram.messages if m.chat == ALICE][-1]
+    assert card.markup is not None
+    buttons = card.markup["inline_keyboard"][0]
+    assert buttons[1] == {"text": "👎 Não tenho interesse", "callback_data": f"s:{job_id}"}
+    assert all("Pular" not in b["text"] for b in buttons)
+
+
+def test_not_interested_on_failed_job_works(env: Env) -> None:
+    job_id = prepare(env)
+    JobRepository(env.app.store, ALICE).set_status(job_id, JobStatus.ERROR)
+    env.callback(ALICE, f"s:{job_id}")
+    job = JobRepository(env.app.store, ALICE).get(job_id)
+    assert job is not None and job.status is JobStatus.SKIPPED

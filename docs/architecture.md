@@ -37,7 +37,7 @@ sequenceDiagram
     S-->>U: (nada ainda; admin recebe resumo silencioso)
     D->>S: deliver_pending()
     S->>J: take_waiting()
-    S-->>U: cards com Gerar candidatura / Pular
+    S-->>U: cards com Gerar candidatura / Não tenho interesse
 ```
 
 A busca manual (`/buscar`) usa o mesmo caminho com `deliver_now=True` e entrega na hora. Se a busca agendada passar das 7h, cada pessoa recebe as vagas assim que a busca dela termina.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import time
+from collections.abc import Sequence
 
 from jobbot import messages
 from jobbot.claude import ClaudeRunnerPort
@@ -20,6 +21,15 @@ log = logging.getLogger("jobbot")
 
 FAILED = "falhou"
 SEARCH_TIMEOUT = 5400
+
+
+def _key(job: Job) -> tuple[str, str]:
+    return " ".join(job.title.split()).casefold(), " ".join(job.company.split()).casefold()
+
+
+def same_as_rejected(job: Job, rejected: Sequence[Job]) -> bool:
+    """Deterministic guard: exact (title, company) match, normalised, with a refused job."""
+    return _key(job) in {_key(r) for r in rejected}
 
 
 class SearchService:
@@ -80,7 +90,10 @@ class SearchService:
         """Search for one candidate. A scheduled search before the delivery hour stores its result."""
         shortlist = user.workspace / SHORTLIST_FILE
         shortlist.unlink(missing_ok=True)
-        self._claude.run(search_prompt(self._settings.top_n), user.workspace, timeout=SEARCH_TIMEOUT)
+        repo = JobRepository(self._store, user.chat_id)
+        rejected = repo.recent_rejected()
+        prompt = search_prompt(self._settings.top_n, rejected)
+        self._claude.run(prompt, user.workspace, timeout=SEARCH_TIMEOUT)
         items = self._store.read(shortlist, None)
         new: list[Job] = []
         result = FAILED
@@ -90,12 +103,12 @@ class SearchService:
             candidates: list[Job] = []
             for item in items:
                 job = Job.from_shortlist(item)
-                if job is None:
+                if job is None or same_as_rejected(job, rejected):
                     continue
                 job.status = status
                 job.date = self._clock.today()
                 candidates.append(job)
-            new = JobRepository(self._store, user.chat_id).add_new(candidates)
+            new = repo.add_new(candidates)
             result = str(len(new))
         if held:
             self._users.update(user.chat_id, lambda u: setattr(u, "pending_result", result))

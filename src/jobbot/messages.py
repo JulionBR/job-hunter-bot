@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from collections.abc import Iterable, Sequence
 
-from jobbot.models import Job
+from jobbot.models import Job, JobStatus
 
 Keyboard = dict[str, list[list[dict[str, str]]]]
 
@@ -44,7 +44,8 @@ def how_it_works(delivery_hour: int) -> str:
         f"3️⃣ Todo dia, de madrugada, eu procuro vagas na Gupy e no LinkedIn e às {delivery_hour}h te mando "
         "as melhores (até 5), com uma nota de aderência, os pontos fortes e as lacunas.\n"
         "4️⃣ Gostou de uma? Toque em 📝 <b>Gerar candidatura</b>: em uns 15 min chegam o currículo e a carta "
-        'sob medida em PDF e o texto para o campo "Apresente-se" da Gupy. Não gostou? ⏭️ <b>Pular</b>.\n'
+        'sob medida em PDF e o texto para o campo "Apresente-se" da Gupy. '
+        "Não gostou? 👎 <b>Não tenho interesse</b> — eu evito parecidas nas próximas buscas.\n"
         "5️⃣ A candidatura é enviada por você, pelo link da vaga, com a sua conta. "
         "Eu nunca peço senha. Depois toque em 📨 <b>Enviei</b>.\n\n"
         "Comandos: /perfil · /fim · /buscar (busca extra, 1x por dia) · /status · /ajuda"
@@ -164,7 +165,7 @@ def job_keyboard(job_id: str) -> Keyboard:
         "inline_keyboard": [
             [
                 {"text": "📝 Gerar candidatura", "callback_data": f"a:{job_id}"},
-                {"text": "⏭️ Pular", "callback_data": f"s:{job_id}"},
+                {"text": "👎 Não tenho interesse", "callback_data": f"s:{job_id}"},
             ]
         ]
     }
@@ -217,7 +218,8 @@ def queued_answer(position: int) -> str:
     return f"Na fila (posição {position})."
 
 
-SKIPPED_ANSWER = "Pulada."
+SKIPPED_ANSWER = "Anotado. Vou evitar vagas parecidas nas próximas buscas."
+IN_PROGRESS_ANSWER = "Essa vaga já está em andamento."
 SENT_ANSWER = "Marcada como enviada. Boa sorte! 🍀"
 
 
@@ -240,8 +242,12 @@ def log_block(chunk: str) -> str:
     return f"<pre>{esc(chunk)}</pre>"
 
 
+STATUS_LABELS = {JobStatus.SKIPPED.value: "não tenho interesse"}
+
+
 def status_counts(counts: dict[str, int]) -> str:
-    return ", ".join(f"{k}: {v}" for k, v in counts.items())
+    """Counts per status; the persisted value ``pulada`` is shown as "não tenho interesse"."""
+    return ", ".join(f"{STATUS_LABELS.get(k, k)}: {v}" for k, v in counts.items())
 
 
 def status_line(counts: dict[str, int]) -> str:

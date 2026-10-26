@@ -103,3 +103,19 @@ def test_unknown_callback_kind_changes_nothing_and_never_escapes_the_loop(env: E
     ]
     env.app.bot.poll_once()  # logged as "update erro", not raised
     assert env.app.bot._offset == 2
+
+
+def test_status_shows_not_interested_label_for_skipped(env: Env) -> None:
+    env.add_candidate()
+    env.app.search.run()
+    status = next(iter(env.app.admin.status_counts(ALICE)), None)
+    assert status == "nova"
+    from jobbot.storage import JobRepository
+
+    repo = JobRepository(env.app.store, ALICE)
+    env.callback(ALICE, f"s:{repo.all()[0].job_id}")
+    env.message(ALICE, "/status")
+    assert env.telegram.last(ALICE) == "📊 não tenho interesse: 1"
+    env.message(ADMIN, "/usuarios")
+    assert "não tenho interesse: 1" in env.telegram.last(ADMIN)
+    assert repo.all()[0].status.value == "pulada"

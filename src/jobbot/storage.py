@@ -124,6 +124,21 @@ class JobRepository:
         raw = self._store.read(self._path, {}).get(job_id)
         return None if raw is None else Job.from_dict(raw, job_id)
 
+    def recent_rejected(self, limit: int = 15) -> list[Job]:
+        """Read-only: up to ``limit`` ``SKIPPED`` jobs, newest first.
+
+        "Newest" is by when the job was found (reverse insertion order), not when it was turned down:
+        no rejection timestamp is stored. With fewer than ``limit`` rejections the difference does not matter.
+        """
+        data = self._store.read(self._path, {})
+        rejected: list[Job] = []
+        for job_id, raw in reversed(list(data.items())):
+            if len(rejected) >= limit:
+                break
+            if raw.get("status") == JobStatus.SKIPPED:
+                rejected.append(Job.from_dict(raw, job_id))
+        return rejected
+
     def add_new(self, items: list[Job]) -> list[Job]:
         """Insert already-built jobs (see ``Job.from_shortlist``) whose id is unknown.
 

@@ -121,6 +121,19 @@ def test_job_repository_set_status_and_take_waiting(store: JsonStore) -> None:
     assert raw[waiting.job_id]["status"] == "na_fila"
 
 
+def test_recent_rejected(store: JsonStore) -> None:
+    repo = JobRepository(store, 2002)
+    assert repo.recent_rejected() == []
+    urls = [f"https://example.com/{i}" for i in range(5)]
+    statuses = [JobStatus.SKIPPED, JobStatus.SENT, JobStatus.SKIPPED, JobStatus.NEW, JobStatus.SKIPPED]
+    repo.add_new([make_job(u, st) for u, st in zip(urls, statuses, strict=True)])
+    expected = [Job.id_for(urls[4]), Job.id_for(urls[2]), Job.id_for(urls[0])]
+    assert [j.job_id for j in repo.recent_rejected()] == expected
+    assert all(j.status is JobStatus.SKIPPED for j in repo.recent_rejected())
+    assert [j.job_id for j in repo.recent_rejected(limit=2)] == expected[:2]
+    assert repo.recent_rejected(limit=0) == []
+
+
 def test_setup_logging_format(tmp_path: Path) -> None:
     logger = setup_logging(tmp_path)
     logger.info("hello")

@@ -19,6 +19,8 @@ from jobbot.telegram import Telegram
 
 Spawn = Callable[[Callable[[], object]], None]
 
+# A failed application can still be turned down; queued/generated/sent ones are already in progress.
+REJECTABLE = (JobStatus.NEW, JobStatus.WAITING, JobStatus.ERROR)
 CALLBACK_STATUS = {"a": JobStatus.QUEUED, "s": JobStatus.SKIPPED, "d": JobStatus.SENT}
 
 
@@ -211,9 +213,16 @@ class CallbackHandlers:
             answer(query["id"], messages.NO_ACCESS_ANSWER)
             return
         status = CALLBACK_STATUS[kind]
-        if not JobRepository(self._store, chat).set_status(arg, status):
+        jobs = JobRepository(self._store, chat)
+        job = jobs.get(arg)
+        if job is None:
             answer(query["id"], messages.JOB_NOT_FOUND_ANSWER)
             return
+        if kind == "s" and job.status not in REJECTABLE:
+            self._telegram.clear_keyboard(chat, message_id)
+            answer(query["id"], messages.IN_PROGRESS_ANSWER)
+            return
+        jobs.set_status(arg, status)
         self._telegram.clear_keyboard(chat, message_id)
         if kind == "a":
             position = self._queue.submit("apply_job", lambda: self._applications.apply_job(chat, arg), chat)

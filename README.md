@@ -44,7 +44,7 @@ Outros detalhes:
 
 1. A pessoa manda "oi" ao bot e o administrador recebe um pedido com **Aprovar / Recusar**.
 2. Depois de aprovada, ela recebe uma explicação curta, manda o currículo (PDF/DOCX ou o PDF do LinkedIn) e faz o `/perfil`: o `/setup` do framework, conduzido pelo Telegram, uma pergunta por vez.
-3. Toda madrugada o bot roda `/scrape` + `/rank` na pasta dela. Às 7h chegam até 5 vagas, com nota, pontos fortes, lacunas e os botões **Gerar candidatura / Pular**.
+3. Toda madrugada o bot roda `/scrape` + `/rank` na pasta dela. Às 7h chegam até 5 vagas, com nota, pontos fortes, lacunas e os botões **Gerar candidatura / Não tenho interesse**.
 4. **Gerar candidatura** roda o `/apply`. Em 10 a 20 minutos chegam o currículo e a carta em PDF e o texto para a Gupy.
 5. **Quem se candidata é a própria pessoa**, pelo link da vaga, com a conta dela, e depois toca em **📨 Enviei**.
 

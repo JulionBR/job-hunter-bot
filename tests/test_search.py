@@ -211,3 +211,39 @@ def test_shortlist_status_new_does_not_break_stored_state(env: Env) -> None:
     env.claude.items = [{"title": "Dev", "url": "https://a/8", "status": "new"}]
     env.app.search.run()
     assert alice_jobs(env)[0].status is JobStatus.NEW
+
+
+def reject(env: Env, title: str, company: str, url: str) -> None:
+    repo = JobRepository(env.app.store, ALICE)
+    job = Job(Job.id_for(url), title, company, "SP", url, status=JobStatus.SKIPPED)
+    repo.add_new([job])
+
+
+def test_rejected_jobs_are_passed_to_the_prompt(env: Env) -> None:
+    env.add_candidate()
+    reject(env, "Vendedor", "Loja Fictícia", "https://r/1")
+    reject(env, "Caixa", "Mercado Fictício", "https://r/2")
+    env.app.search.run()
+    prompt = env.claude.calls[0]["prompt"]
+    assert "Vagas que a pessoa recusou" in prompt
+    assert prompt.index("- Caixa — Mercado Fictício") < prompt.index("- Vendedor — Loja Fictícia")
+
+
+def test_no_rejected_block_without_rejections(env: Env) -> None:
+    env.add_candidate()
+    env.app.search.run()
+    assert "Vagas que a pessoa recusou" not in env.claude.calls[0]["prompt"]
+
+
+def test_exact_duplicate_of_rejected_is_dropped_and_others_kept(env: Env) -> None:
+    env.add_candidate()
+    reject(env, "Analista", "Empresa X", "https://r/old")
+    env.claude.items = [
+        {"title": "  analista ", "company": "EMPRESA   x", "url": "https://n/1"},
+        {"title": "Analista Sênior", "company": "Empresa X", "url": "https://n/2"},
+        {"title": "Analista", "company": "Outra", "url": "https://n/3"},
+    ]
+    env.app.search.run()
+    urls = {j.url for j in alice_jobs(env) if j.status is JobStatus.NEW}
+    assert urls == {"https://n/2", "https://n/3"}
+    assert "2 vaga(s) nova(s)" in env.texts(ALICE)[0]
