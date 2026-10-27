@@ -71,7 +71,7 @@ def build_app(
     provisioner = provisioner or WorkspaceProvisioner(
         settings.home, settings.reference_workspace, settings.candidates_dir, store, runner.exclusive
     )
-    worker = Worker(telegram)
+    worker = Worker(telegram, notifier)
     profile = ProfileService(settings, users, claude, telegram, notifier, clock)
     search = SearchService(settings, users, store, claude, telegram, notifier, clock)
     applications = ApplicationService(users, store, claude, telegram, notifier)

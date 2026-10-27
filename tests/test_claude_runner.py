@@ -42,6 +42,13 @@ def test_expired_token_alerts_admins(tmp_path: Path) -> None:
     assert "token do Claude" in telegram.last(1001)
 
 
+def test_stdout_and_stderr_are_kept_apart(tmp_path: Path) -> None:
+    runner, _ = make_runner(tmp_path, "echo saida; echo aviso >&2")
+    result = runner.run("oi", tmp_path)
+    assert result.stdout == "saida\n" and result.stderr == "aviso\n"
+    assert result.output == "saida\naviso\n"
+
+
 def test_other_failure_does_not_alert(tmp_path: Path) -> None:
     runner, telegram = make_runner(tmp_path, "echo boom; exit 1")
     assert not runner.run("oi", tmp_path).ok

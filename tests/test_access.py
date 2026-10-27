@@ -1,4 +1,5 @@
 from conftest import ADMIN, ALICE, BOB, Env
+from jobbot import messages
 
 
 def test_single_request_per_person(env: Env) -> None:
@@ -56,7 +57,7 @@ def test_approve_unknown_or_existing_is_noop(env: Env) -> None:
 def test_refusal_notifies_the_person(env: Env) -> None:
     env.message(BOB, "oi")
     env.callback(ADMIN, f"no:{BOB}")
-    assert env.telegram.last(BOB) == "Seu acesso a este bot não foi liberado."
+    assert env.telegram.last(BOB) == messages.ACCESS_REFUSED
     assert env.telegram.answers[-1][1] == "Recusado."
     assert env.app.pending.all() == []
 

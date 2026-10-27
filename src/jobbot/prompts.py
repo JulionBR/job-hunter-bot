@@ -37,11 +37,24 @@ BASE_NOTE = (
 
 # The ai-job-search /apply stops after the evaluation and asks "Should I proceed?"; through the bot
 # nobody can answer, so tapping "Gerar candidatura" is the confirmation.
-APPLY_NOTE = "Execução automática pelo bot do Telegram: não há ninguém para responder. A pessoa já decidiu se candidatar ao tocar em 'Gerar candidatura', então a resposta à pergunta 'Should I proceed with drafting the CV and cover letter for this role?' é SIM: faça a avaliação de aderência e siga direto pelo fluxo completo do /apply até os PDFs compilados, sem fazer perguntas nem pedir confirmação. Lacunas e informações que faltam: reconheça com honestidade nos documentos, nunca invente. Também é SIM para 'Continue with this posting?' (alerta do posting_guard) e para host não verificado: registre o alerta no resumo final e siga. Siga até os PDFs mesmo com aderência baixa. Onde o perfil ou os templates mandam perguntar ou confirmar com a pessoa (números, lacunas, nível de Excel etc.), NÃO pergunte: use só o que está nas fontes e omita o resto. Step 5e: use `python3 tools/jobbot_tex.py --clean <arquivo>.tex`. Não ofereça campos extras de formulário. Termine em português, em poucas linhas: nota de aderência, 2-3 lacunas e qualquer alerta (posting_guard, host, compilação)."
+SUMMARY_START = "<<<RESUMO"
+SUMMARY_END = "RESUMO>>>"
 
-SETUP_NOTE = "Pule a verificação de git/GitHub do Step 0 do setup.md: não rode git nem gh (o bot nunca publica nada). Para listar documentos use `find documents -type f`. Se for testar o CV: `python3 tools/jobbot_tex.py cv/main_example.tex`. Toda resposta termina com UMA pergunta ou com o aviso de que acabou e que a pessoa deve mandar /fim."
+APPLY_NOTE = (
+    "Execução automática pelo bot do Telegram: não há ninguém para responder. A pessoa já decidiu se candidatar ao tocar em 'Gerar candidatura', então a resposta à pergunta 'Should I proceed with drafting the CV and cover letter for this role?' é SIM: faça a avaliação de aderência e siga direto pelo fluxo completo do /apply até os PDFs compilados, sem fazer perguntas nem pedir confirmação. Lacunas e informações que faltam: reconheça com honestidade nos documentos, nunca invente. Também é SIM para 'Continue with this posting?' (alerta do posting_guard) e para host não verificado: registre o alerta e siga (ele só vai para a pessoa se for importante, veja o bloco final). Siga até os PDFs mesmo com aderência baixa. Onde o perfil ou os templates mandam perguntar ou confirmar com a pessoa (números, lacunas, nível de Excel etc.), NÃO pergunte: use só o que está nas fontes e omita o resto. Step 5e: use `python3 tools/jobbot_tex.py --clean <arquivo>.tex`. Não ofereça campos extras de formulário."
+    " Mensagem final: a pessoa lê no celular e é leiga; ela NÃO vê o seu progresso nem o seu raciocínio, só o bloco abaixo. Responda sempre em português. Termine com UM bloco, uma única vez, e não escreva nada depois dele:\n"
+    f"{SUMMARY_START}\n"
+    "linha 1: uma frase dizendo que a candidatura para <cargo> na <empresa> está pronta e que os PDFs vêm logo abaixo\n"
+    "linha 2: '⭐ Combina com você: boa|média|baixa' + ' — ' + uma frase simples do porquê (sem número, sem nota)\n"
+    "linhas seguintes, só se houver: até 2 linhas '• ' com o que falta no perfil da pessoa para a vaga, em linguagem de leiga (sem sigla técnica); se couber na mesma linha, termine com 'Na entrevista: ' e uma dica curta e honesta\n"
+    "última linha, só se for importante: '🚩 Atenção: ' + o problema em uma frase (vaga com sinais de golpe ou suspeita, pede dinheiro ou dados sensíveis, parece ser de outra empresa); caso contrário, não escreva a linha\n"
+    f"{SUMMARY_END}\n"
+    "Regras do bloco: texto puro (sem markdown, sem **, sem #, sem crases, sem links), no máximo 6 linhas e 600 caracteres, frases curtas. Fora do bloco nada é entregue. Não cite no bloco: ferramentas e scripts (posting_guard, verify_layout, jobbot_tex), verificação ou compilação dos PDFs, nomes de arquivos ou pastas, host/domínio, porcentagens ou nota numérica, passos do /apply, erros de busca de avaliações. Esses detalhes vão antes do bloco, se quiser registrá-los."
+)
 
-GUPY_NOTE = "Sem perguntas. Use só fatos do perfil e da vaga já lidos; se faltar algo, omita. Não grave arquivos nem rode comandos: responda só com o texto."
+SETUP_NOTE = "Pule a verificação de git/GitHub do Step 0 do setup.md: não rode git nem gh (o bot nunca publica nada). Para listar documentos use `find documents -type f`. Se for testar o CV: `python3 tools/jobbot_tex.py cv/main_example.tex`. Toda resposta termina com UMA pergunta ou, quando o perfil estiver completo, com um resumo de até 6 linhas começando com '- ' (esse resumo final é a exceção ao limite de 4 linhas por mensagem) e o aviso de que a pessoa deve mandar /fim."
+
+GUPY_NOTE = "Sem perguntas. Use só fatos do perfil e da vaga já lidos; se faltar algo, omita. Não grave arquivos nem rode comandos. Responda só com o texto final: sem título, sem aspas, sem introdução, sem markdown e sem comentário depois."
 
 SHORTLIST_FILE = ".jobbot-shortlist.json"
 
@@ -63,14 +76,24 @@ SEARCH_PROMPT = """Rodada automática, sem ninguém para responder: não faça p
 
 GUPY_PROMPT = (
     "Com base na vaga e na candidatura que você acabou de preparar, escreva o texto para o campo "
-    "'Apresente-se' / 'Sobre você' da Gupy: português, no máximo 1.500 caracteres, só fatos do perfil. "
-    "Responda apenas com o texto."
+    "'Apresente-se' / 'Sobre você' da Gupy. Português, primeira pessoa, tom profissional e caloroso, "
+    "no máximo 900 caracteres, em 2 ou 3 parágrafos curtos (a pessoa vai copiar e colar pelo celular). "
+    "Abra dizendo quem ela é e o que faz; mostre 2 ou 3 experiências ou resultados do perfil que "
+    "combinam com a vaga; feche com o interesse na empresa e na vaga. Só fatos do perfil. "
+    "Não liste o que falta: se houver uma lacuna importante, cite no máximo uma vez, como vontade de aprender. "
+    "Sem emojis, sem listas, sem asteriscos, sem título e sem campos [entre colchetes]. Responda apenas com o texto."
 )
 
 SETUP_PROMPT = """Siga .claude/commands/setup.md para montar o perfil do(a) candidato(a).
-A pessoa está conversando com você pelo Telegram, no celular: escreva em português, mensagens curtas,
-UMA pergunta por vez, sem tabelas nem markdown pesado. Mercado brasileiro; currículo e cartas em português.
-Se houver currículo em documents/cv/, use-o como ponto de partida. Comece se apresentando em uma frase
+A pessoa está conversando com você pelo Telegram, no celular, e não é da área de tecnologia. Estilo das respostas:
+- português do Brasil, tom acolhedor e objetivo, tratando a pessoa por "você";
+- no máximo 4 linhas (uns 400 caracteres) por mensagem, e UMA pergunta por vez, sempre no final;
+- texto puro: sem markdown (nada de **, #, crases ou tabelas); para listar, use no máximo 5 linhas começando com "- ";
+- confirme o que entendeu em uma frase curta ("Anotado: ...") antes da próxima pergunta, sem repetir tudo;
+- nunca fale de arquivos, pastas, permissões, comandos ou ferramentas; se algo técnico falhar, diga só "tive um probleminha técnico, mas vamos seguir" e siga com o que der;
+- nunca peça senha nem dados de acesso a contas.
+Mercado brasileiro; currículo e cartas em português. Se houver currículo em documents/cv/, use-o como ponto de partida
+e não pergunte o que ele já responde (só confirme o que estiver cortado ou duvidoso). Comece se apresentando em uma frase
 e fazendo a primeira pergunta."""
 
 

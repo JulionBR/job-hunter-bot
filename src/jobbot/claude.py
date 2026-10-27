@@ -24,8 +24,16 @@ TOKEN_ERROR_MARKERS = ("401", "unauthorized", "oauth", "login", "expired")
 
 @dataclass(frozen=True)
 class ClaudeResult:
+    """Outcome of a run. Only ``stdout`` may reach the candidate; ``output`` (both streams) is for logs
+    and admin alerts."""
+
     ok: bool
-    output: str
+    stdout: str
+    stderr: str = ""
+
+    @property
+    def output(self) -> str:
+        return self.stdout + self.stderr
 
 
 class ClaudeRunnerPort(Protocol):
@@ -152,12 +160,13 @@ class ClaudeRunner:
                     timeout=timeout,
                     stdin=subprocess.DEVNULL,
                 )
-                out, ok = p.stdout + p.stderr, p.returncode == 0
+                stdout, stderr, ok = p.stdout, p.stderr, p.returncode == 0
             except subprocess.TimeoutExpired:
-                out, ok = "Tempo esgotado.", False
+                stdout, stderr, ok = "", "Tempo esgotado.", False
             self._staging.sync(Path(cwd))
             shutil.rmtree(Path(cwd) / ".jobbot-tmp", ignore_errors=True)
+        out = stdout + stderr
         log.info(f"claude ok={ok}: {out[-500:]!r}")
         if not ok and any(s in out.lower() for s in TOKEN_ERROR_MARKERS):
             self._notifier.notify(messages.TOKEN_EXPIRED)
-        return ClaudeResult(ok, out)
+        return ClaudeResult(ok, stdout, stderr)

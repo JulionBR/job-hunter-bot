@@ -2,13 +2,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from conftest import ADMIN, ALICE, Env, FixedClock, MakeEnv, write_profile
+from jobbot import messages
 from jobbot.prompts import SETUP_NOTE
 
 
 def test_profile_not_ready_blocks_manual_search(env: Env) -> None:
     env.add_candidate(ready=False)
     env.message(ALICE, "/buscar")
-    assert "Primeiro monte" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.PROFILE_FIRST
 
 
 def test_setup_conversation(env: Env) -> None:
@@ -37,7 +38,18 @@ def test_setup_error_message(env: Env) -> None:
     env.claude.ok = False
     env.message(ALICE, "/perfil")
     env.run_queue()
-    assert env.telegram.plain[-1].text.startswith("❌ Deu erro")
+    assert env.telegram.plain[-1].text == messages.PROFILE_ERROR
+    assert env.telegram.last(ADMIN) == messages.profile_failed_admin("Alice")
+    assert "/log erros" in env.telegram.last(ADMIN)
+
+
+def test_profile_turn_sends_only_stdout(env: Env) -> None:
+    env.add_candidate(ready=False)
+    env.claude.output = "Qual é a sua área?"
+    env.claude.stderr = "WARNING: update disponível, token sk-fake"
+    env.message(ALICE, "/perfil")
+    env.run_queue()
+    assert [m.text for m in env.telegram.plain] == ["Qual é a sua área?"]
 
 
 def test_finish_marks_profile_ready_and_notifies_admin(env: Env) -> None:
@@ -58,7 +70,7 @@ def test_finish_incomplete_profile(env: Env) -> None:
     env.message(ALICE, "/fim")
     user = env.app.users.get(ALICE)
     assert user is not None and not user.profile_ready
-    assert "ainda está incompleto" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.PROFILE_INCOMPLETE
 
 
 def test_turn_without_session_is_noop(env: Env) -> None:
@@ -72,9 +84,9 @@ def test_cv_upload(env: Env) -> None:
     env.telegram.files["f1"] = b"%PDF-cv"
     env.message(ALICE, "", document={"file_id": "f1", "file_name": "../cv.pdf"})
     assert (workspace / "documents" / "cv" / "cv.pdf").read_bytes() == b"%PDF-cv"
-    assert "Currículo salvo (cv.pdf)" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.cv_saved("cv.pdf")
     env.message(ALICE, "", document={"file_id": "f1", "file_name": "virus.exe"})
-    assert env.telegram.last(ALICE) == "Mande o currículo em PDF ou Word (.docx)."
+    assert env.telegram.last(ALICE) == messages.CV_FORMAT
 
 
 def test_profile_session_survives_restart_and_fim_clears_it(env: Env, make_env: MakeEnv) -> None:

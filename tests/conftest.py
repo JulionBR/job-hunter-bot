@@ -123,6 +123,8 @@ class FakeClaude:
         self.ok = True
         self.busy = False
         self.output = "texto"
+        self.stderr = ""  # warnings Claude prints on stderr: must never reach the candidate
+        self.reply: Callable[[str], str] | None = None  # per-prompt output, overrides ``output``
         self.on_run: Callable[[str, Path], None] | None = None
 
     def run(
@@ -152,7 +154,7 @@ class FakeClaude:
         if self.on_run:
             self.on_run(prompt, cwd)
         logging.getLogger("jobbot").info(f"claude ok={self.ok} fake {prompt[:20]}")
-        return ClaudeResult(self.ok, self.output)
+        return ClaudeResult(self.ok, self.reply(prompt) if self.reply else self.output, self.stderr)
 
     def is_busy(self) -> bool:
         return self.busy

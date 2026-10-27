@@ -15,7 +15,7 @@ from jobbot.config import Settings
 from jobbot.messages import ADMIN_CMDS, USER_CMDS
 from jobbot.services.admin import TaskInfo
 from jobbot.storage import UserRepository
-from jobbot.telegram import Telegram
+from jobbot.telegram import Notifier, Telegram
 
 log = logging.getLogger("jobbot")
 
@@ -25,8 +25,9 @@ RETRY_DELAY = 10
 class Worker:
     """Runs one Claude job at a time, in submission order."""
 
-    def __init__(self, telegram: Telegram) -> None:
+    def __init__(self, telegram: Telegram, notifier: Notifier) -> None:
         self._telegram = telegram
+        self._notifier = notifier
         self._queue: queue.Queue[tuple[str, Callable[[], None], int]] = queue.Queue()
         self._current: TaskInfo | None = None
 
@@ -49,7 +50,8 @@ class Worker:
             fn()
         except Exception as ex:
             log.error(f"{name} erro: {ex}")
-            self._telegram.send_message(chat, messages.worker_error(ex))
+            self._telegram.send_message(chat, messages.WORKER_ERROR)
+            self._notifier.notify(messages.worker_error_admin(name, chat, ex))
         self._current = None
 
     def run_forever(self) -> None:

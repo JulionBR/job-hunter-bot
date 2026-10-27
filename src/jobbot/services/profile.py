@@ -88,7 +88,11 @@ class ProfileService:
             resume=not first,
             system=SETUP_NOTE,
         )
-        self._telegram.send_plain(chat, result.output if result.ok else messages.PROFILE_ERROR)
+        if result.ok:
+            self._telegram.send_plain(chat, result.stdout)
+            return
+        self._telegram.send_plain(chat, messages.PROFILE_ERROR)
+        self._notifier.notify(messages.profile_failed_admin(user.name))
 
     def finish(self, user: User) -> None:
         """/fim: close the conversation and mark whether the profile is complete."""

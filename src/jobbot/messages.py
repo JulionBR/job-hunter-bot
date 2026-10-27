@@ -38,17 +38,17 @@ def command_list(cmds: Sequence[tuple[str, str]]) -> str:
 def how_it_works(delivery_hour: int) -> str:
     return (
         "<b>Como funciona</b>\n"
-        "1️⃣ Mande aqui seu currículo (PDF ou Word) ou o PDF do seu perfil do LinkedIn.\n"
-        "2️⃣ Mande /perfil: vou fazer algumas perguntas, uma por vez, para entender o que você procura "
-        "(uns 20–30 min, pode pausar e voltar depois). No final, mande /fim.\n"  # noqa: RUF001
-        f"3️⃣ Todo dia, de madrugada, eu procuro vagas na Gupy e no LinkedIn e às {delivery_hour}h te mando "
-        "as melhores (até 5), com uma nota de aderência, os pontos fortes e as lacunas.\n"
-        "4️⃣ Gostou de uma? Toque em 📝 <b>Gerar candidatura</b>: em uns 15 min chegam o currículo e a carta "
-        'sob medida em PDF e o texto para o campo "Apresente-se" da Gupy. '
-        "Não gostou? 👎 <b>Não tenho interesse</b> — eu evito parecidas nas próximas buscas.\n"
-        "5️⃣ A candidatura é enviada por você, pelo link da vaga, com a sua conta. "
-        "Eu nunca peço senha. Depois toque em 📨 <b>Enviei</b>.\n\n"
-        "Comandos: /perfil · /fim · /buscar (busca extra, 1x por dia) · /status · /ajuda"
+        "1️⃣ Mande seu currículo (PDF ou Word) ou o PDF do seu LinkedIn.\n"
+        "2️⃣ Mande /perfil: faço perguntas, uma por vez, sobre o que você procura "
+        "(20 a 30 min, pode pausar). Ao terminar, mande /fim.\n"
+        f"3️⃣ Todo dia às {delivery_hour}h te mando até 5 vagas da Gupy e do LinkedIn, "
+        "com nota, pontos fortes e o que falta.\n"
+        "4️⃣ Gostou? Toque em 📝 <b>Gerar candidatura</b>: em uns 15 min chegam currículo e carta em PDF "
+        'e o texto do campo "Apresente-se" da Gupy. '
+        "Não gostou? Toque em 👎 <b>Não tenho interesse</b> e eu evito vagas parecidas.\n"
+        "5️⃣ Você envia pelo link da vaga, com a sua conta. Eu nunca peço senha. "
+        "Depois toque em 📨 <b>Enviei</b>.\n\n"
+        "Comandos: /perfil · /fim · /buscar (1x por dia) · /status · /ajuda"
     )
 
 
@@ -59,12 +59,12 @@ def help_text(delivery_hour: int, is_admin: bool) -> str:
 
 # ---------- access ----------
 ADMIN_ONLY_ANSWER = "Só o administrador pode fazer isso."
-APPROVING_ANSWER = "Aprovando… aviso quando a pasta estiver pronta."
+APPROVING_ANSWER = "Aprovando… aviso quando terminar."
 REFUSED_ANSWER = "Recusado."
 NO_ACCESS_ANSWER = "Acesso não liberado."
 JOB_NOT_FOUND_ANSWER = "Vaga não encontrada."
-ACCESS_REFUSED = "Seu acesso a este bot não foi liberado."
-ACCESS_REQUESTED = "Olá! 👋 Pedi ao administrador para liberar seu acesso. Aviso aqui quando for aprovado."
+ACCESS_REFUSED = "Seu acesso não foi liberado."
+ACCESS_REQUESTED = "Olá! 👋 Pedi ao administrador para liberar seu acesso. Aviso aqui assim que for aprovado."
 ADMIN_HELP = "Comandos de admin:\n" + command_list(ADMIN_CMDS)
 NO_PENDING = "Nenhum pedido pendente."
 NO_USERS = "Nenhum candidato."
@@ -110,22 +110,24 @@ def removed(name: str, folder: object) -> str:
 
 
 # ---------- profile ----------
-CV_FORMAT = "Mande o currículo em PDF ou Word (.docx)."
-PROFILE_FIRST = "Primeiro monte seu perfil com /perfil."
+CV_FORMAT = "Mande o currículo em PDF ou Word (.docx), por favor."
+PROFILE_FIRST = "Antes, vamos montar seu perfil: mande /perfil."
 PROFILE_INTRO = (
-    "👋 Vamos montar seu perfil. Responda as perguntas aqui mesmo; leva uns 20–30 min, "  # noqa: RUF001
-    "pode pausar quando quiser. Mande /fim para encerrar."
+    "👋 Vamos montar seu perfil! Responda as perguntas aqui mesmo. Leva uns 20 a 30 min "
+    "e você pode pausar quando quiser. Para terminar, mande /fim."
 )
-PROFILE_ERROR = "❌ Deu erro. Tente de novo ou mande /fim e depois /perfil."
-PROFILE_INCOMPLETE = "Conversa encerrada, mas o perfil ainda está incompleto. Mande /perfil para continuar."
+PROFILE_ERROR = "❌ Algo deu errado. Mande a resposta de novo ou use /fim e depois /perfil."
+PROFILE_INCOMPLETE = (
+    "Conversa encerrada, mas faltou terminar o perfil. Mande /perfil para continuar de onde parou."
+)
 
 
 def cv_saved(name: str) -> str:
-    return f"📄 Currículo salvo ({esc(name)}). Agora mande /perfil para montar o perfil."
+    return f"📄 Currículo recebido ({esc(name)}). Agora mande /perfil."
 
 
 def profile_done(delivery_hour: int) -> str:
-    return f"✅ Perfil pronto! A partir de amanhã você recebe vagas todo dia às {delivery_hour}h."
+    return f"✅ Perfil pronto! Amanhã às {delivery_hour}h chegam suas primeiras vagas."
 
 
 def profile_done_admin(name: str) -> str:
@@ -133,10 +135,10 @@ def profile_done_admin(name: str) -> str:
 
 
 # ---------- search ----------
-SEARCH_RUNNING = "⏳ Já tem uma busca rodando. As vagas chegam quando ela terminar."
-SEARCH_FAILED = "⚠️ A busca de vagas de hoje falhou. O administrador já foi avisado."
-MANUAL_SEARCH_DONE = "Você já fez uma busca manual hoje. A próxima busca automática roda de madrugada."
-MANUAL_SEARCH_STARTED = "🔎 Buscando vagas agora. Aviso quando terminar (pode levar mais de meia hora)."
+SEARCH_RUNNING = "⏳ Já estou buscando vagas. Elas chegam aqui quando terminar."
+SEARCH_FAILED = "⚠️ A busca de hoje não funcionou. O administrador já foi avisado."
+MANUAL_SEARCH_DONE = "Você já usou a busca extra de hoje. Amanhã de madrugada eu busco de novo."
+MANUAL_SEARCH_STARTED = "🔎 Buscando vagas agora. Pode levar mais de meia hora; aviso quando terminar."
 
 
 def admin_search_started(arg: str) -> str:
@@ -144,7 +146,7 @@ def admin_search_started(arg: str) -> str:
 
 
 def no_new_jobs(today: str) -> str:
-    return f"🔎 {today}: nenhuma vaga nova com boa aderência hoje."
+    return f"🔎 {today}: hoje não achei vagas novas que combinem com você."
 
 
 def new_jobs_header(count: int, today: str) -> str:
@@ -155,7 +157,7 @@ def job_card(job: Job) -> str:
     deadline = f"\n⏰ Prazo: {esc(job.deadline)}" if job.deadline else ""
     return (
         f"<b>{esc(job.title)}</b>\n🏢 {esc(job.company)} · 📍 {esc(job.location)}\n"
-        f"⭐ Aderência: {esc(job.score)}\n✅ {esc(job.strengths)}\n⚠️ {esc(job.gaps)}{deadline}\n"
+        f"⭐ Combina com você: {esc(job.score)}\n✅ {esc(job.strengths)}\n⚠️ {esc(job.gaps)}{deadline}\n"
         f'🔗 <a href="{esc(job.url)}">Abrir vaga</a>'
     )
 
@@ -184,7 +186,9 @@ def delivery_note(delivery_hour: int) -> str:
 
 
 # ---------- applications ----------
-FILES_FAILED = "❌ Não consegui gerar os PDFs desta vez. O administrador já foi avisado."
+FILES_FAILED = (
+    "❌ Não consegui gerar sua candidatura. O administrador já foi avisado. Toque abaixo para tentar de novo."
+)
 
 
 def retry_keyboard(job_id: str) -> Keyboard:
@@ -192,7 +196,7 @@ def retry_keyboard(job_id: str) -> Keyboard:
 
 
 def generating(title: str, company: str) -> str:
-    return f"⏳ Gerando candidatura: <b>{esc(title)}</b> ({esc(company)}). Leva uns 10–20 min."  # noqa: RUF001
+    return f"⏳ Gerando sua candidatura: <b>{esc(title)}</b> ({esc(company)}). Leva uns 10 a 20 min."
 
 
 def apply_failed_admin(user_name: str, title: str, company: str, output: str) -> str:
@@ -202,12 +206,17 @@ def apply_failed_admin(user_name: str, title: str, company: str, output: str) ->
     )
 
 
+GUPY_INTRO = '✍️ Texto para o campo "Apresente-se" da Gupy. Toque no texto abaixo e segure para copiar 👇'
+APPLY_SUMMARY_FALLBACK = "✅ Sua candidatura está pronta! Os PDFs chegam logo abaixo 👇"
+
+
 def gupy_text(text: str) -> str:
-    return "Texto para a Gupy (copie e cole):\n\n" + text
+    """The Gupy text alone (sent right after ``GUPY_INTRO``), so it is easy to copy on a phone."""
+    return text.strip()
 
 
 def application_ready(url: str) -> str:
-    return f'✅ Pronto. Confira os PDFs e envie pela vaga: <a href="{esc(url)}">abrir</a>'
+    return f'✅ Pronto! Confira os PDFs e envie pelo link da vaga: <a href="{esc(url)}">abrir vaga</a>'
 
 
 def sent_keyboard(job_id: str) -> Keyboard:
@@ -215,16 +224,23 @@ def sent_keyboard(job_id: str) -> Keyboard:
 
 
 def queued_answer(position: int) -> str:
-    return f"Na fila (posição {position})."
+    return f"Na fila (posição {position}). Aviso quando começar."
 
 
-SKIPPED_ANSWER = "Anotado. Vou evitar vagas parecidas nas próximas buscas."
-IN_PROGRESS_ANSWER = "Essa vaga já está em andamento."
+SKIPPED_ANSWER = "Anotado. Vou evitar vagas parecidas."
+IN_PROGRESS_ANSWER = "Essa vaga já foi encaminhada."
 SENT_ANSWER = "Marcada como enviada. Boa sorte! 🍀"
 
 
-def worker_error(error: object) -> str:
-    return f"❌ Erro: {esc(error)}"
+WORKER_ERROR = "❌ Algo deu errado. O administrador já foi avisado."
+
+
+def worker_error_admin(task: str, chat: int, error: object) -> str:
+    return f"❌ Falha em {esc(task)} (chat <code>{chat}</code>): {esc(error)}\nMais em /log erros"
+
+
+def profile_failed_admin(name: str) -> str:
+    return f"⚠️ O /perfil de {esc(name)} falhou. Veja /log erros"
 
 
 TOKEN_EXPIRED = (

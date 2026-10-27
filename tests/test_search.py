@@ -3,6 +3,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from conftest import ADMIN, ALICE, BOB, Env, FixedClock, MakeEnv
+from jobbot import messages
 from jobbot.models import Job, JobStatus
 from jobbot.storage import JobRepository
 
@@ -17,7 +18,7 @@ def test_search_delivers_card_and_summarises_to_admin(env: Env) -> None:
     texts = env.texts(ALICE)
     assert "1 vaga(s) nova(s)" in texts[0]
     assert "<b>Analista</b>" in texts[1]
-    assert "⭐ Aderência: 8/10" in texts[1]
+    assert texts[1] == messages.job_card(alice_jobs(env)[0])
     card = [m for m in env.telegram.messages if m.chat == ALICE][-1]
     assert card.markup is not None
     job = alice_jobs(env)[0]
@@ -38,7 +39,7 @@ def test_duplicate_search_says_nothing_new(env: Env) -> None:
     env.add_candidate()
     env.app.search.run()
     env.app.search.run()
-    assert "nenhuma vaga nova" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.no_new_jobs(env.app.clock.today())
     assert len(alice_jobs(env)) == 1
 
 
@@ -46,7 +47,7 @@ def test_failed_search_tells_user(env: Env) -> None:
     env.add_candidate()
     env.claude.items = None
     env.app.search.run()
-    assert "A busca de vagas de hoje falhou" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.SEARCH_FAILED
     assert "Alice: falhou" in env.telegram.last(ADMIN)
 
 
@@ -63,7 +64,7 @@ def test_item_without_url_is_ignored(env: Env) -> None:
     env.add_candidate()
     env.claude.items = [{"title": "Sem link"}]
     env.app.search.run()
-    assert "nenhuma vaga nova" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.no_new_jobs(env.app.clock.today())
 
 
 def test_error_in_one_candidate_does_not_stop_others(env: Env) -> None:
@@ -99,7 +100,7 @@ def test_busy_lock_warns_requester(env: Env) -> None:
         fcntl.flock(lock, fcntl.LOCK_EX)
         env.app.search.run(ALICE, True)
         env.app.search.run()
-    assert env.texts(ALICE) == ["⏳ Já tem uma busca rodando. As vagas chegam quando ela terminar."]
+    assert env.texts(ALICE) == [messages.SEARCH_RUNNING]
     assert env.claude.calls == []
 
 
@@ -108,7 +109,7 @@ def test_manual_search_limit_one_per_day_except_admin(env: Env) -> None:
     env.message(ALICE, "/buscar")
     assert "Buscando vagas agora" in env.texts(ALICE)[0]
     env.message(ALICE, "/buscar")
-    assert "já fez uma busca" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.MANUAL_SEARCH_DONE
     assert len(env.claude.calls) == 1
 
 
@@ -148,7 +149,7 @@ def test_scheduled_search_before_delivery_hour_stores_then_delivers_once(make_en
 
     env.app.search.run()
     env.app.search.deliver_pending()
-    assert "nenhuma vaga nova" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.no_new_jobs(env.app.clock.today())
     delivered = len(env.texts(ALICE))
     env.app.search.deliver_pending()
     assert len(env.texts(ALICE)) == delivered
@@ -172,7 +173,7 @@ def test_failed_scheduled_search_is_reported_at_delivery(make_env: MakeEnv) -> N
     user = env.app.users.get(ALICE)
     assert user is not None and user.pending_result == "falhou"
     env.app.search.deliver_pending()
-    assert "falhou" in env.telegram.last(ALICE)
+    assert env.telegram.last(ALICE) == messages.SEARCH_FAILED
 
 
 def test_summary_is_silent_overnight_and_audible_by_day(make_env: MakeEnv) -> None:

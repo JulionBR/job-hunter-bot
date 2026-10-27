@@ -9,10 +9,13 @@ from typing import Protocol
 
 from jobbot import messages
 from jobbot.claude import ClaudeRunnerPort
+from jobbot.services.applications import APPLY_OUTPUT_PREFIX
 from jobbot.services.profile import ProfileService
 from jobbot.storage import JobRepository, JsonStore, PendingRepository, UserRepository
 
 ERROR_PATTERN = re.compile(r"ok=False|erro|falhou|Traceback")
+# Log lines that quote Claude's output or prompts are not bot errors, even if they contain "erro".
+NOT_ERRORS = (f"{APPLY_OUTPUT_PREFIX}[", "claude[", "claude ok=True")
 LOG_CHUNK = 3500
 SEARCH_TIMER = "jobbot-search.timer"
 
@@ -56,7 +59,11 @@ class AdminService:
             if f.exists():
                 lines += f.read_text(errors="replace").splitlines()
         if arg == "erros":
-            lines = [line for line in lines if ERROR_PATTERN.search(line)][-20:]
+            lines = [
+                line
+                for line in lines
+                if ERROR_PATTERN.search(line) and not any(m in line for m in NOT_ERRORS)
+            ][-20:]
         else:
             lines = lines[-min(int(arg) if arg.isdigit() else 30, 200) :]
         return [line[:300] for line in lines]
