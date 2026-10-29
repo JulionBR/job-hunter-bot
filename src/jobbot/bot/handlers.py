@@ -16,6 +16,7 @@ from jobbot.services.profile import ProfileService
 from jobbot.services.search import SearchService
 from jobbot.storage import JobRepository, JsonStore, UserRepository
 from jobbot.telegram import Telegram
+from jobbot.workspace import PortalAudience
 
 Spawn = Callable[[Callable[[], object]], None]
 
@@ -28,6 +29,9 @@ class TaskQueue(Protocol):
     """Serial queue of Claude jobs (the Worker)."""
 
     def submit(self, name: str, fn: Callable[[], None], chat: int) -> int: ...
+
+
+PCD_ANSWERS = {"sim": True, "s": True, "nao": False, "não": False, "n": False}
 
 
 def parse_chat_id(arg: str) -> int | None:
@@ -58,9 +62,11 @@ class AdminHandlers:
         admin: AdminService,
         search: SearchService,
         spawn: Spawn,
+        portals: PortalAudience | None = None,
     ) -> None:
         self._telegram = telegram
         self._users = users
+        self._portals = portals or PortalAudience()
         self._access = access
         self._admin = admin
         self._search = search
@@ -81,6 +87,8 @@ class AdminHandlers:
             say(chat, messages.admin_search_started(arg))
             only = parse_chat_id(arg) if arg else None
             self._spawn(lambda: self._search.run(only, True))
+        elif cmd == "/pcd":
+            self._set_pcd(chat, arg)
         elif cmd == "/log":
             self._send_log(chat, arg)
         elif cmd == "/saude":
@@ -88,6 +96,19 @@ class AdminHandlers:
         else:
             return False
         return True
+
+    def _set_pcd(self, chat: int, arg: str) -> None:
+        target, _, answer = arg.partition(" ")
+        pcd = PCD_ANSWERS.get(answer.strip().lower())
+        chat_id = parse_chat_id(target)
+        user = None
+        if chat_id is not None and pcd is not None:
+            user = self._users.update(chat_id, lambda u: setattr(u, "pcd", pcd))
+        if user is None or pcd is None:
+            self._telegram.send_message(chat, messages.PCD_USAGE)
+            return
+        found = self._portals.sync(user)
+        self._telegram.send_message(chat, messages.pcd_set(user.name, pcd, found))
 
     def _is_user(self, arg: str) -> bool:
         chat = parse_chat_id(arg)

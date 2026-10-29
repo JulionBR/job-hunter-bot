@@ -12,8 +12,8 @@ def test_users_summary(env: Env) -> None:
     env.message(ADMIN, "/usuarios")
     text = env.telegram.last(ADMIN)
     assert "Alice" in text
-    assert f"<code>{ALICE}</code> — perfil ✅\n  sem vagas ainda" in text
-    assert "perfil ⏳ (conversando)" in text
+    assert f"<code>{ALICE}</code> — perfil ✅ · PcD: ?\n  sem vagas ainda" in text
+    assert "perfil ⏳ (conversando) · PcD: ?" in text
 
 
 def test_health(env: Env) -> None:

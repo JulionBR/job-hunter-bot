@@ -13,7 +13,7 @@ from jobbot.models import PendingRequest, User
 from jobbot.services.profile import ProfileService
 from jobbot.storage import PendingRepository, UserRepository
 from jobbot.telegram import Notifier, Telegram
-from jobbot.workspace import Provisioner, slugify
+from jobbot.workspace import PortalAudience, Provisioner, slugify
 
 log = logging.getLogger("jobbot")
 
@@ -29,6 +29,7 @@ class AccessService:
         telegram: Telegram,
         notifier: Notifier,
         clock: Clock,
+        portals: PortalAudience | None = None,
     ) -> None:
         self._settings = settings
         self._users = users
@@ -38,6 +39,7 @@ class AccessService:
         self._telegram = telegram
         self._notifier = notifier
         self._clock = clock
+        self._portals = portals or PortalAudience()
 
     def request_access(self, chat: int, sender: Mapping[str, Any], text: str) -> None:
         """Register the request (once) and warn the admins with approve/refuse buttons."""
@@ -74,7 +76,9 @@ class AccessService:
             log.error(f"create_folder {chat} erro: {ex}")
             self._notifier.notify(messages.folder_failed(request.name, ex))
             return
-        self._users.save(User(chat, request.name, workspace, profile_ready=False, since=self._clock.today()))
+        user = User(chat, request.name, workspace, profile_ready=False, since=self._clock.today(), pcd=False)
+        self._users.save(user)
+        self._portals.sync(user)
         self._telegram.send_message(chat, messages.access_granted(self._settings.delivery_hour))
         self._notifier.notify(messages.approved_admin(request.name, workspace))
 

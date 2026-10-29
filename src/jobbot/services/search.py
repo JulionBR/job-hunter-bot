@@ -16,6 +16,7 @@ from jobbot.models import Job, JobStatus, User
 from jobbot.prompts import SHORTLIST_FILE, search_prompt
 from jobbot.storage import JobRepository, JsonStore, UserRepository
 from jobbot.telegram import Notifier, Telegram
+from jobbot.workspace import PortalAudience
 
 log = logging.getLogger("jobbot")
 
@@ -42,6 +43,7 @@ class SearchService:
         telegram: Telegram,
         notifier: Notifier,
         clock: Clock,
+        portals: PortalAudience | None = None,
     ) -> None:
         self._settings = settings
         self._users = users
@@ -50,6 +52,7 @@ class SearchService:
         self._telegram = telegram
         self._notifier = notifier
         self._clock = clock
+        self._portals = portals or PortalAudience()
 
     def _before_delivery(self) -> bool:
         return self._clock.now().hour < self._settings.delivery_hour
@@ -88,6 +91,8 @@ class SearchService:
 
     def run_for(self, user: User, deliver_now: bool) -> str:
         """Search for one candidate. A scheduled search before the delivery hour stores its result."""
+        # Reload: the snapshot may predate a /pcd given while the search waited in line.
+        self._portals.sync(self._users.get(user.chat_id) or user)
         shortlist = user.workspace / SHORTLIST_FILE
         shortlist.unlink(missing_ok=True)
         repo = JobRepository(self._store, user.chat_id)

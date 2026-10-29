@@ -53,3 +53,4 @@ A busca manual (`/buscar`) usa o mesmo caminho com `deliver_now=True` e entrega 
 | Estado em JSON, não em banco | Poucos usuários, poucas escritas, e é fácil de inspecionar e de fazer backup |
 | `callback_data` curto (`a:`, `s:`, `d:`, `ok:`, `no:`) | Limite de 64 bytes do Telegram; os botões antigos continuam válidos depois das atualizações |
 | Modelos aceitam chaves antigas em PT | O estado da versão anterior migra sozinho, sem script |
+- **Portais por público.** Um portal com `audience: pcd` no frontmatter do seu `SKILL.md` é ligado/desligado por candidato (`enabled:` editado por `PortalAudience` em `workspace.py`) a partir de `User.pcd`, definido com `/pcd` ou `add-user --pcd`; `None` não altera nada. A sincronização roda no início de cada busca.

@@ -98,7 +98,9 @@ cd /home/jobbot/jobbot/app && sudo -u jobbot python3 -m jobbot add-user --chat-i
 
 **Candidatos:** `/perfil` · `/fim` · `/buscar` (busca extra, 1 por dia) · `/status` · `/ajuda`, além de mandar o currículo em PDF/DOCX a qualquer momento.
 
-**Administradores:** `/usuarios` · `/pendentes` · `/buscar [ID]` · `/log [N|erros]` · `/saude` · `/remover ID`.
+**Administradores:** `/usuarios` · `/pendentes` · `/buscar [ID]` · `/log [N|erros]` · `/saude` · `/remover ID` · `/pcd ID sim|nao`.
+
+Portais exclusivos (ex.: PcD) declaram `audience: pcd` no frontmatter do `SKILL.md`; o bot grava `enabled: true|false` conforme a flag `/pcd` do candidato (desconhecida = não mexe; novos candidatos entram com `nao`).
 
 ## Desenvolvimento
 

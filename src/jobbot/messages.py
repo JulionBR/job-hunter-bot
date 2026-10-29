@@ -16,6 +16,7 @@ ADMIN_CMDS: list[tuple[str, str]] = [
     ("log", "últimas linhas do log (/log 50, /log erros)"),
     ("saude", "estado do bot, fila e próxima busca"),
     ("remover", "remover candidato: /remover ID"),
+    ("pcd", "portais PcD: /pcd ID sim|nao"),
 ]
 USER_CMDS: list[tuple[str, str]] = [
     ("perfil", "montar ou atualizar seu perfil"),
@@ -69,6 +70,16 @@ ADMIN_HELP = "Comandos de admin:\n" + command_list(ADMIN_CMDS)
 NO_PENDING = "Nenhum pedido pendente."
 NO_USERS = "Nenhum candidato."
 REMOVE_USAGE = "Uso: /remover ID (veja os IDs em /usuarios)."
+PCD_USAGE = "Uso: /pcd ID sim|nao (veja os IDs em /usuarios)."
+
+
+def pcd_set(name: str, pcd: bool, portals: int) -> str:
+    if not portals:
+        return (
+            f"{esc(name)}: PcD {'sim' if pcd else 'não'} gravado, mas nenhum portal PcD instalado na pasta."
+        )
+    state = "ligados" if pcd else "desligados"
+    return f"{esc(name)}: PcD {'sim' if pcd else 'não'}, {portals} portal(is) PcD {state}."
 
 
 def approval_keyboard(chat: int | str) -> Keyboard:
@@ -274,10 +285,14 @@ def status_line(counts: dict[str, int]) -> str:
     return "📊 " + (status_counts(counts) or "nenhuma vaga ainda")
 
 
-def user_line(name: str, chat: int, ready: bool, chatting: bool, counts: dict[str, int]) -> str:
+def user_line(
+    name: str, chat: int, ready: bool, chatting: bool, counts: dict[str, int], pcd: bool | None = None
+) -> str:
     return (
         f"• <b>{esc(name)}</b> <code>{chat}</code> — perfil {'✅' if ready else '⏳'}"
-        f"{' (conversando)' if chatting else ''}\n  " + (status_counts(counts) or "sem vagas ainda")
+        f"{' (conversando)' if chatting else ''}"
+        f" · PcD: {'?' if pcd is None else 'sim' if pcd else 'não'}\n  "
+        + (status_counts(counts) or "sem vagas ainda")
     )
 
 

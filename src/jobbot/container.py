@@ -21,7 +21,7 @@ from jobbot.services.search import SearchService
 from jobbot.storage import JsonStore, PendingRepository, UserRepository
 from jobbot.systemd import systemctl_show
 from jobbot.telegram import Notifier, Telegram, TelegramClient
-from jobbot.workspace import Provisioner, WorkspaceProvisioner
+from jobbot.workspace import PortalAudience, Provisioner, WorkspaceProvisioner
 
 
 def spawn_thread(fn: Callable[[], object]) -> None:
@@ -73,16 +73,17 @@ def build_app(
     )
     worker = Worker(telegram, notifier)
     profile = ProfileService(settings, users, claude, telegram, notifier, clock)
-    search = SearchService(settings, users, store, claude, telegram, notifier, clock)
+    portals = PortalAudience()
+    search = SearchService(settings, users, store, claude, telegram, notifier, clock, portals)
     applications = ApplicationService(users, store, claude, telegram, notifier)
-    access = AccessService(settings, users, pending, provisioner, profile, telegram, notifier, clock)
+    access = AccessService(settings, users, pending, provisioner, profile, telegram, notifier, clock, portals)
     admin = AdminService(store, users, pending, claude, profile, worker, show_unit)
     router = Router(
         settings,
         telegram,
         users,
         GuestHandlers(access),
-        AdminHandlers(telegram, users, access, admin, search, spawn),
+        AdminHandlers(telegram, users, access, admin, search, spawn, portals),
         CandidateHandlers(settings, telegram, users, profile, search, admin, worker, spawn, clock),
         CallbackHandlers(settings, telegram, users, store, access, applications, worker, spawn),
     )

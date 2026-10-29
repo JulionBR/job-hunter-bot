@@ -12,7 +12,7 @@ from jobbot.config import ConfigError, Settings
 from jobbot.container import build_app
 from jobbot.models import User
 from jobbot.storage import JsonStore, UserRepository
-from jobbot.workspace import profile_ready
+from jobbot.workspace import PortalAudience, profile_ready
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,11 +25,14 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--chat-id", type=int, required=True)
     add.add_argument("--name", required=True)
     add.add_argument("--workspace", type=Path, required=True)
+    add.add_argument("--pcd", choices=("sim", "nao"), help="PcD candidate (turns PcD portals on/off)")
     add.add_argument("--profile-ready", action="store_true", help="skip the CLAUDE.md check and mark ready")
     return parser
 
 
-def add_user(settings: Settings, chat_id: int, name: str, workspace: Path, ready: bool | None) -> User:
+def add_user(
+    settings: Settings, chat_id: int, name: str, workspace: Path, ready: bool | None, pcd: bool | None = None
+) -> User:
     """Register (or update) a candidate; ``ready=None`` means: compute it from the workspace."""
     users = UserRepository(JsonStore(settings.state_dir))
     existing = users.get(chat_id)
@@ -46,8 +49,10 @@ def add_user(settings: Settings, chat_id: int, name: str, workspace: Path, ready
         pending_result=existing.pending_result if existing else None,
         profile_session=existing.profile_session if existing and keep_session else None,
         profile_session_started=existing.profile_session_started if existing and keep_session else None,
+        pcd=existing.pcd if existing and pcd is None else pcd,
     )
     users.save(user)
+    PortalAudience().sync(user)
     return user
 
 
@@ -63,7 +68,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not workspace.is_dir():
             print(f"error: workspace folder not found: {workspace}", file=sys.stderr)
             return 1
-        user = add_user(settings, args.chat_id, args.name, workspace, True if args.profile_ready else None)
+        pcd = None if args.pcd is None else args.pcd == "sim"
+        user = add_user(
+            settings, args.chat_id, args.name, workspace, True if args.profile_ready else None, pcd
+        )
         state = "ready" if user.profile_ready else "not ready"
         print(f"registered {user.name} ({user.chat_id}), profile {state}")
         return 0

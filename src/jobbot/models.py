@@ -46,12 +46,14 @@ class User:
     pending_result: str | None = None
     profile_session: str | None = None  # UUID of the open /perfil conversation (survives restarts)
     profile_session_started: str | None = None  # ISO timestamp; old sessions expire
+    pcd: bool | None = None  # None = unknown: the bot leaves the PcD portals untouched
 
     @classmethod
     def from_dict(cls, chat_id: int | str, data: Mapping[str, Any]) -> User:
         pending = _pick(data, "pending_result", "resultado_pendente", None)
         session = data.get("profile_session")
         started = data.get("profile_session_started")
+        pcd = data.get("pcd")
         return cls(
             chat_id=int(chat_id),
             name=_text(_pick(data, "name", "nome")),
@@ -62,6 +64,7 @@ class User:
             pending_result=None if pending is None else str(pending),
             profile_session=None if session is None else str(session),
             profile_session_started=None if started is None else str(started),
+            pcd=pcd if isinstance(pcd, bool) else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,6 +82,8 @@ class User:
             data["profile_session"] = self.profile_session
         if self.profile_session_started is not None:
             data["profile_session_started"] = self.profile_session_started
+        if self.pcd is not None:
+            data["pcd"] = self.pcd
         return data
 
 
