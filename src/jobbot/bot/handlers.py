@@ -104,6 +104,11 @@ class AdminHandlers:
             self._telegram.send_message(chat, messages.log_block(chunk), silent=True)
 
 
+def _is_finish_word(text: str) -> bool:
+    """A bare "Fim" / "fim." / "fim!" (the user forgot the slash) while a /perfil is open."""
+    return text.strip().lower() in ("fim", "fim.", "fim!")
+
+
 class CandidateHandlers:
     """Approved candidates (admins who are also candidates fall here when no admin command matched)."""
 
@@ -131,16 +136,22 @@ class CandidateHandlers:
 
     def handle(self, user: User, message: dict[str, Any], cmd: str, text: str) -> None:
         chat = user.chat_id
+        session = self._profile.current_session(chat)
         if "document" in message:
             self._profile.save_cv(user, message["document"])
         elif cmd == "/perfil":
-            self._profile.start(chat)
-            self._queue.submit("setup_turn", lambda: self._profile.turn(chat, None), chat)
+            session = self._profile.start(chat)
+            self._queue.submit("setup_turn", lambda: self._profile.turn(chat, None, session), chat)
+        elif session is not None and (cmd == "/fim" or _is_finish_word(text)):
+            # Runs after the turns already queued, so the last answer is in the profile when it is checked.
+            self._telegram.send_message(chat, messages.PROFILE_FINISH_QUEUED)
+            queued = session
+            self._queue.submit("setup_finish", lambda: self._profile.finish_queued(chat, queued), chat)
         elif cmd == "/fim":
             self._profile.finish(user)
-        elif self._profile.is_active(chat) and text and not text.startswith("/"):
+        elif session and text and not text.startswith("/"):
             self._telegram.send_typing(chat)
-            self._queue.submit("setup_turn", lambda: self._profile.turn(chat, text), chat)
+            self._queue.submit("setup_turn", lambda: self._profile.turn(chat, text, session), chat)
         elif cmd == "/buscar":
             self._manual_search(user)
         elif cmd == "/status":

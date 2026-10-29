@@ -33,6 +33,9 @@ def add_user(settings: Settings, chat_id: int, name: str, workspace: Path, ready
     """Register (or update) a candidate; ``ready=None`` means: compute it from the workspace."""
     users = UserRepository(JsonStore(settings.state_dir))
     existing = users.get(chat_id)
+    # An explicit "ready" closes any open /perfil conversation; otherwise the session and its start time
+    # travel together (a session without a start time would never expire).
+    keep_session = existing is not None and not ready
     user = User(
         chat_id=chat_id,
         name=name,
@@ -41,7 +44,8 @@ def add_user(settings: Settings, chat_id: int, name: str, workspace: Path, ready
         since=existing.since if existing else Clock(settings.tz).today(),
         manual_search_day=existing.manual_search_day if existing else "",
         pending_result=existing.pending_result if existing else None,
-        profile_session=existing.profile_session if existing else None,
+        profile_session=existing.profile_session if existing and keep_session else None,
+        profile_session_started=existing.profile_session_started if existing and keep_session else None,
     )
     users.save(user)
     return user

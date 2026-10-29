@@ -52,7 +52,10 @@ APPLY_NOTE = (
     "Regras do bloco: texto puro (sem markdown, sem **, sem #, sem crases, sem links), no máximo 6 linhas e 600 caracteres, frases curtas. Fora do bloco nada é entregue. Não cite no bloco: ferramentas e scripts (posting_guard, verify_layout, jobbot_tex), verificação ou compilação dos PDFs, nomes de arquivos ou pastas, host/domínio, porcentagens ou nota numérica, passos do /apply, erros de busca de avaliações. Esses detalhes vão antes do bloco, se quiser registrá-los."
 )
 
-SETUP_NOTE = "Pule a verificação de git/GitHub do Step 0 do setup.md: não rode git nem gh (o bot nunca publica nada). Para listar documentos use `find documents -type f`. Se for testar o CV: `python3 tools/jobbot_tex.py cv/main_example.tex`. Toda resposta termina com UMA pergunta ou, quando o perfil estiver completo, com um resumo de até 6 linhas começando com '- ' (esse resumo final é a exceção ao limite de 4 linhas por mensagem) e o aviso de que a pessoa deve mandar /fim."
+SETUP_NOTE = (
+    "Pule a verificação de git/GitHub do Step 0 do setup.md: não rode git nem gh (o bot nunca publica nada). Para listar documentos use `find documents -type f`. Se for testar o CV: `python3 tools/jobbot_tex.py cv/main_example.tex`. Toda resposta termina com UMA pergunta ou, quando o perfil estiver completo, com um resumo de até 6 linhas começando com '- ' (esse resumo final é a exceção ao limite de 4 linhas por mensagem) e o aviso de que a pessoa deve mandar /fim. "
+    'Só o bot encerra o perfil, quando a pessoa enviar /fim (com a barra): nunca diga que o perfil está encerrado, concluído ou pronto; se ela escrever "fim", "terminei" ou parecido, só lembre de mandar /fim.'
+)
 
 GUPY_NOTE = "Sem perguntas. Use só fatos do perfil e da vaga já lidos; se faltar algo, omita. Não grave arquivos nem rode comandos. Responda só com o texto final: sem título, sem aspas, sem introdução, sem markdown e sem comentário depois."
 
@@ -92,6 +95,7 @@ A pessoa está conversando com você pelo Telegram, no celular, e não é da ár
 - confirme o que entendeu em uma frase curta ("Anotado: ...") antes da próxima pergunta, sem repetir tudo;
 - nunca fale de arquivos, pastas, permissões, comandos ou ferramentas; se algo técnico falhar, diga só "tive um probleminha técnico, mas vamos seguir" e siga com o que der;
 - nunca peça senha nem dados de acesso a contas.
+- o perfil só termina quando a pessoa enviar /fim (com a barra): ao salvar tudo, peça isso em uma frase e nunca diga que já está encerrado ou pronto.
 Mercado brasileiro; currículo e cartas em português. Se houver currículo em documents/cv/, use-o como ponto de partida
 e não pergunte o que ele já responde (só confirme o que estiver cortado ou duvidoso). Comece se apresentando em uma frase
 e fazendo a primeira pergunta."""

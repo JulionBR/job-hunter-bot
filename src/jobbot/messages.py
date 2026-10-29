@@ -117,6 +117,10 @@ PROFILE_INTRO = (
     "e você pode pausar quando quiser. Para terminar, mande /fim."
 )
 PROFILE_ERROR = "❌ Algo deu errado. Mande a resposta de novo ou use /fim e depois /perfil."
+NO_ACTIVE_PROFILE = "Não há conversa de perfil aberta agora. Se quiser revisar o perfil, mande /perfil."
+PROFILE_FINISH_QUEUED = (
+    "Recebi o /fim. Vou fechar seu perfil assim que eu terminar de processar a sua última resposta."
+)
 PROFILE_INCOMPLETE = (
     "Conversa encerrada, mas faltou terminar o perfil. Mande /perfil para continuar de onde parou."
 )

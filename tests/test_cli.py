@@ -100,3 +100,35 @@ def test_service_commands_require_the_telegram_token(
 def test_add_user_does_not_need_the_token(home: Path) -> None:
     (home / "ws").mkdir()
     assert main(["add-user", "--chat-id", "2007", "--name", "Fa", "--workspace", str(home / "ws")]) == 0
+
+
+def _open_session(home: Path, chat: str) -> None:
+    state = home / "jobbot" / "state" / "users.json"
+    data = json.loads(state.read_text())
+    data[chat]["profile_session"] = "uuid-1"
+    data[chat]["profile_session_started"] = "2026-01-05T10:00:00-03:00"
+    state.write_text(json.dumps(data))
+
+
+def test_add_user_again_keeps_session_with_its_start_time(home: Path) -> None:
+    workspace = home / "ws"
+    workspace.mkdir()
+    args = ["add-user", "--chat-id", "2005", "--name", "Dani", "--workspace", str(workspace)]
+    main(args)
+    _open_session(home, "2005")
+    main(args)
+    after = users_json(home)["2005"]
+    assert after["profile_session"] == "uuid-1"
+    assert after["profile_session_started"] == "2026-01-05T10:00:00-03:00"
+
+
+def test_add_user_profile_ready_clears_open_session(home: Path) -> None:
+    workspace = home / "ws"
+    workspace.mkdir()
+    args = ["add-user", "--chat-id", "2006", "--name", "Eli", "--workspace", str(workspace)]
+    main(args)
+    _open_session(home, "2006")
+    main([*args, "--profile-ready"])
+    after = users_json(home)["2006"]
+    assert after["profile_ready"] is True
+    assert "profile_session" not in after and "profile_session_started" not in after

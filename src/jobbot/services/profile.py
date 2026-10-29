@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -42,20 +43,32 @@ class ProfileService:
 
     # The conversation UUID lives in users.json (``profile_session``), so a restart keeps it.
     def _session(self, user: User | None) -> str | None:
-        """The user's open conversation, or None if there is none or it expired."""
+        """The user's open conversation, or None if there is none or it expired.
+
+        An expired session is cleared from the stored user (never touching ``profile_ready``). A session with
+        no usable start time (legacy data, corrupted value) cannot be aged, so it is treated as expired too:
+        otherwise it would stay open forever and swallow free text.
+        """
         if user is None or not user.profile_session:
             return None
-        if user.profile_session_started:
-            try:
-                started = datetime.fromisoformat(user.profile_session_started)
-            except ValueError:
-                return None
-            if self._clock.now() - started > SESSION_TTL:
-                return None
+        if self._is_expired(user.profile_session_started):
+            self._users.update(user.chat_id, _expire_session(user.profile_session))
+            return None
         return user.profile_session
+
+    def _is_expired(self, started: str | None) -> bool:
+        if not started:
+            return True
+        try:
+            return self._clock.now() - datetime.fromisoformat(started) > SESSION_TTL
+        except (ValueError, TypeError):  # unparsable, or naive (no timezone) and so not comparable: expired
+            return True
 
     def is_active(self, chat: int) -> bool:
         return self._session(self._users.get(chat)) is not None
+
+    def current_session(self, chat: int) -> str | None:
+        return self._session(self._users.get(chat))
 
     def active_count(self) -> int:
         return sum(1 for u in self._users.all() if self._session(u) is not None)
@@ -63,8 +76,8 @@ class ProfileService:
     def discard(self, chat: int) -> None:
         self._users.update(chat, _close_session)
 
-    def start(self, chat: int) -> None:
-        """Open a new conversation and greet the user; the first Claude turn is ``turn(chat, None)``."""
+    def start(self, chat: int) -> str:
+        """Open a new conversation and greet the user; returns its id, used by the first turn."""
         session, started = str(uuid.uuid4()), self._clock.now().isoformat()
 
         def open_session(u: User) -> None:
@@ -72,12 +85,16 @@ class ProfileService:
 
         self._users.update(chat, open_session)
         self._telegram.send_message(chat, messages.PROFILE_INTRO)
+        return session
 
-    def turn(self, chat: int, text: str | None) -> None:
-        """One Claude turn of the conversation (``None`` text means the opening turn)."""
+    def turn(self, chat: int, text: str | None, session: str) -> None:
+        """One Claude turn of the conversation (``None`` text means the opening turn).
+
+        ``session`` is the id the turn was queued for; if it is no longer the current one (replaced by a new
+        /perfil, closed by /fim or expired) the turn is dropped silently.
+        """
         user = self._users.get(chat)
-        session = self._session(user)
-        if user is None or session is None:
+        if user is None or self._session(user) != session:
             return
         first = text is None
         result = self._claude.run(
@@ -94,18 +111,52 @@ class ProfileService:
         self._telegram.send_plain(chat, messages.PROFILE_ERROR)
         self._notifier.notify(messages.profile_failed_admin(user.name))
 
+    def finish_queued(self, chat: int, session: str) -> None:
+        """/fim run by the worker, after the turns queued before it.
+
+        ``session`` is the conversation the /fim was sent in; if a new /perfil replaced it meanwhile, the new
+        conversation is left alone.
+        """
+        user = self._users.get(chat)
+        if user is not None and self._session(user) == session:
+            self._close(user, session)
+
     def finish(self, user: User) -> None:
         """/fim: close the conversation and mark whether the profile is complete."""
+        session = self._session(self._users.get(user.chat_id))
+        if session is None:
+            self._finish_without_session(user)
+            return
+        self._close(user, session)
+
+    def _close(self, user: User, session: str) -> None:
         ready = profile_ready(user.workspace)
+        closed = False
 
         def close(u: User) -> None:
-            _close_session(u)
-            u.profile_ready = ready
+            nonlocal closed
+            if u.profile_session == session:  # a newer /perfil opened meanwhile stays
+                _close_session(u)
+                u.profile_ready = ready
+                closed = True
 
         self._users.update(user.chat_id, close)
+        if not closed:
+            return
         if ready:
             self._telegram.send_message(user.chat_id, messages.profile_done(self._settings.delivery_hour))
             self._notifier.notify(messages.profile_done_admin(user.name), silent=True)
+        else:
+            self._telegram.send_message(user.chat_id, messages.PROFILE_INCOMPLETE)
+
+    def _finish_without_session(self, user: User) -> None:
+        """No open conversation: never demote a ready profile, never notify the admin."""
+        fresh = self._users.get(user.chat_id) or user
+        if fresh.profile_ready:
+            self._telegram.send_message(user.chat_id, messages.NO_ACTIVE_PROFILE)
+        elif profile_ready(user.workspace):  # files finished but /fim never arrived (e.g. expired session)
+            self._users.update(user.chat_id, lambda u: setattr(u, "profile_ready", True))
+            self._telegram.send_message(user.chat_id, messages.profile_done(self._settings.delivery_hour))
         else:
             self._telegram.send_message(user.chat_id, messages.PROFILE_INCOMPLETE)
 
@@ -124,3 +175,11 @@ class ProfileService:
 def _close_session(user: User) -> None:
     user.profile_session = None
     user.profile_session_started = None
+
+
+def _expire_session(session: str) -> Callable[[User], None]:
+    def clear(user: User) -> None:
+        if user.profile_session == session:  # a newer /perfil opened meanwhile stays
+            _close_session(user)
+
+    return clear
