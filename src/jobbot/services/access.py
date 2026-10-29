@@ -69,18 +69,36 @@ class AccessService:
         request = self._pending.pop(chat)
         if request is None or self._users.get(chat):
             return
-        workspace = self._settings.candidates_dir / f"{slugify(request.name)}-{chat}"
+        user = self._enroll(chat, request.name)
+        if user is None:
+            return
+        self._telegram.send_message(chat, messages.access_granted(self._settings.delivery_hour))
+        self._notifier.notify(messages.approved_admin(request.name, user.workspace))
+
+    def join_as_admin(self, chat: int, name: str) -> None:
+        """/participar: an admin registers themselves as a candidate (same steps as an approval)."""
+        if self._users.get(chat):
+            self._telegram.send_message(chat, messages.ALREADY_CANDIDATE)
+            return
+        if self._enroll(chat, name) is not None:
+            self._telegram.send_message(chat, messages.joined_as_candidate(self._settings.delivery_hour))
+
+    def _enroll(self, chat: int, name: str) -> User | None:
+        """Create the workspace folder, register the candidate and sync the PcD portals.
+
+        On a provisioning failure the admins are warned and nobody is registered (returns None).
+        """
+        workspace = self._settings.candidates_dir / f"{slugify(name)}-{chat}"
         try:
             self._provisioner.create_folder(workspace)
         except Exception as ex:
             log.error(f"create_folder {chat} erro: {ex}")
-            self._notifier.notify(messages.folder_failed(request.name, ex))
-            return
-        user = User(chat, request.name, workspace, profile_ready=False, since=self._clock.today(), pcd=False)
+            self._notifier.notify(messages.folder_failed(name, ex))
+            return None
+        user = User(chat, name, workspace, profile_ready=False, since=self._clock.today(), pcd=False)
         self._users.save(user)
         self._portals.sync(user)
-        self._telegram.send_message(chat, messages.access_granted(self._settings.delivery_hour))
-        self._notifier.notify(messages.approved_admin(request.name, workspace))
+        return user
 
     def refuse(self, chat: int) -> None:
         if self._pending.pop(chat) is not None:

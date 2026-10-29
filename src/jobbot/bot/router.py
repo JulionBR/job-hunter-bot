@@ -40,7 +40,9 @@ class Router:
         cmd, arg = cmd.split("@")[0].lower(), arg.strip()
         user = self._users.get(chat)
         is_admin = chat in self._settings.admin_ids
-        if is_admin and cmd.startswith("/") and self._admins.handle(chat, cmd, arg):
+        # Admin commands only match "/..." text: free text from an admin who is also a candidate
+        # falls through to CandidateHandlers, where an open /perfil conversation takes it.
+        if is_admin and cmd.startswith("/") and self._admins.handle(chat, cmd, arg, message.get("from")):
             return
         if user is None:
             if is_admin:

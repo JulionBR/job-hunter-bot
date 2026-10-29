@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 from jobbot import messages
@@ -72,13 +72,17 @@ class AdminHandlers:
         self._search = search
         self._spawn = spawn
 
-    def handle(self, chat: int, cmd: str, arg: str) -> bool:
+    def handle(self, chat: int, cmd: str, arg: str, sender: Mapping[str, Any] | None = None) -> bool:
         """Handle an admin command; False if ``cmd`` is not one of them."""
         say = self._telegram.send_message
         if cmd == "/usuarios":
             say(chat, self._admin.users_summary())
         elif cmd == "/pendentes":
             self._access.send_pending(chat)
+        elif cmd == "/participar":
+            name = str((sender or {}).get("first_name") or chat)
+            # Like an approval, it clones a repo: keep it off the polling thread.
+            self._spawn(lambda: self._access.join_as_admin(chat, name))
         elif cmd == "/remover":
             target = parse_chat_id(arg)
             removed = None if target is None else self._access.remove(target)

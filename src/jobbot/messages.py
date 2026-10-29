@@ -12,6 +12,7 @@ Keyboard = dict[str, list[list[dict[str, str]]]]
 ADMIN_CMDS: list[tuple[str, str]] = [
     ("usuarios", "candidatos e vagas de cada um"),
     ("pendentes", "pedidos de acesso"),
+    ("participar", "receber vagas também (você como candidato)"),
     ("buscar", "buscar vagas agora (todos, ou /buscar ID)"),
     ("log", "últimas linhas do log (/log 50, /log erros)"),
     ("saude", "estado do bot, fila e próxima busca"),
@@ -106,6 +107,16 @@ def pending_line(name: str, username: str, chat: int, requested_at: str) -> str:
 
 def access_granted(delivery_hour: int) -> str:
     return "✅ <b>Acesso liberado!</b>\n\n" + how_it_works(delivery_hour)
+
+
+ALREADY_CANDIDATE = "Você já é candidato. Para montar ou atualizar seu perfil, mande /perfil."
+
+
+def joined_as_candidate(delivery_hour: int) -> str:
+    return (
+        "✅ Pronto, você também é candidato. Agora mande /perfil para montar seu perfil.\n\n"
+        + how_it_works(delivery_hour)
+    )
 
 
 def folder_failed(name: str, error: object) -> str:
