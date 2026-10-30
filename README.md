@@ -98,9 +98,9 @@ cd /home/jobbot/jobbot/app && sudo -u jobbot python3 -m jobbot add-user --chat-i
 
 **Candidatos:** `/perfil` · `/fim` · `/buscar` (busca extra, 1 por dia) · `/status` · `/ajuda`, além de mandar o currículo em PDF/DOCX a qualquer momento.
 
-**Administradores:** `/usuarios` · `/pendentes` · `/buscar [ID]` · `/log [N|erros]` · `/saude` · `/remover ID` · `/pcd ID sim|nao`.
+**Administradores:** `/usuarios` · `/pendentes` · `/buscar [ID]` · `/log [N|erros]` · `/saude` · `/remover ID` · `/pcd ID sim|nao` · `/portal ID tag sim|nao`.
 
-Portais exclusivos (ex.: PcD) declaram `audience: pcd` no frontmatter do `SKILL.md`; o bot grava `enabled: true|false` conforme a flag `/pcd` do candidato (desconhecida = não mexe; novos candidatos entram com `nao`).
+Portais exclusivos declaram `audience: <tag>` (ex.: `pcd`, `ti`) no frontmatter do `SKILL.md`; o bot grava `enabled: true|false` conforme `User.audiences[tag]`, definido com `/portal ID tag sim|nao` (`/pcd ID sim|nao` é atalho para a tag `pcd`) ou `add-user --pcd sim|nao` / `--portal TAG=sim|nao` (repetível). Tag ausente = não mexe; novos candidatos entram com `pcd` em `nao` e as demais tags intocadas (a pasta de referência traz os portais com `enabled: false`).
 
 ## Desenvolvimento
 

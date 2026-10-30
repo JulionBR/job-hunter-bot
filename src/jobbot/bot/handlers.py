@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
@@ -31,7 +32,8 @@ class TaskQueue(Protocol):
     def submit(self, name: str, fn: Callable[[], None], chat: int) -> int: ...
 
 
-PCD_ANSWERS = {"sim": True, "s": True, "nao": False, "não": False, "n": False}
+TAG_RE = re.compile(r"[a-z0-9-]+")
+ANSWERS = {"sim": True, "s": True, "nao": False, "não": False, "n": False}
 
 
 def parse_chat_id(arg: str) -> int | None:
@@ -92,7 +94,12 @@ class AdminHandlers:
             only = parse_chat_id(arg) if arg else None
             self._spawn(lambda: self._search.run(only, True))
         elif cmd == "/pcd":
-            self._set_pcd(chat, arg)
+            who, _, answer = arg.partition(" ")
+            self._set_audience(chat, who, "pcd", answer, messages.PCD_USAGE)
+        elif cmd == "/portal":
+            who, _, rest = arg.partition(" ")
+            tag, _, answer = rest.strip().partition(" ")
+            self._set_audience(chat, who, tag.lower(), answer, messages.PORTAL_USAGE)
         elif cmd == "/log":
             self._send_log(chat, arg)
         elif cmd == "/saude":
@@ -101,18 +108,17 @@ class AdminHandlers:
             return False
         return True
 
-    def _set_pcd(self, chat: int, arg: str) -> None:
-        target, _, answer = arg.partition(" ")
-        pcd = PCD_ANSWERS.get(answer.strip().lower())
+    def _set_audience(self, chat: int, target: str, tag: str, answer: str, usage: str) -> None:
+        on = ANSWERS.get(answer.strip().lower())
         chat_id = parse_chat_id(target)
         user = None
-        if chat_id is not None and pcd is not None:
-            user = self._users.update(chat_id, lambda u: setattr(u, "pcd", pcd))
-        if user is None or pcd is None:
-            self._telegram.send_message(chat, messages.PCD_USAGE)
+        if chat_id is not None and on is not None and TAG_RE.fullmatch(tag):
+            user = self._users.update(chat_id, lambda u: u.audiences.__setitem__(tag, on))
+        if user is None or on is None:
+            self._telegram.send_message(chat, usage)
             return
-        found = self._portals.sync(user)
-        self._telegram.send_message(chat, messages.pcd_set(user.name, pcd, found))
+        found = self._portals.sync(user, tag)
+        self._telegram.send_message(chat, messages.portal_set(user.name, tag, on, found))
 
     def _is_user(self, arg: str) -> bool:
         chat = parse_chat_id(arg)

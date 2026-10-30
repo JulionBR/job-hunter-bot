@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from jobbot.clock import Clock
@@ -26,12 +27,34 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--name", required=True)
     add.add_argument("--workspace", type=Path, required=True)
     add.add_argument("--pcd", choices=("sim", "nao"), help="PcD candidate (turns PcD portals on/off)")
+    add.add_argument(
+        "--portal",
+        action="append",
+        default=[],
+        metavar="TAG=sim|nao",
+        type=_portal_arg,
+        help="turn the portals of an audience tag on/off (repeatable, e.g. --portal ti=sim)",
+    )
     add.add_argument("--profile-ready", action="store_true", help="skip the CLAUDE.md check and mark ready")
     return parser
 
 
+def _portal_arg(raw: str) -> tuple[str, bool]:
+    tag, _, answer = raw.partition("=")
+    tag = tag.strip().lower()
+    on = {"sim": True, "nao": False}.get(answer.strip().lower())
+    if on is None or not re.fullmatch(r"[a-z0-9-]+", tag):
+        raise argparse.ArgumentTypeError(f"expected TAG=sim|nao, got {raw!r}")
+    return tag, on
+
+
 def add_user(
-    settings: Settings, chat_id: int, name: str, workspace: Path, ready: bool | None, pcd: bool | None = None
+    settings: Settings,
+    chat_id: int,
+    name: str,
+    workspace: Path,
+    ready: bool | None,
+    audiences: Mapping[str, bool] | None = None,
 ) -> User:
     """Register (or update) a candidate; ``ready=None`` means: compute it from the workspace."""
     users = UserRepository(JsonStore(settings.state_dir))
@@ -49,7 +72,7 @@ def add_user(
         pending_result=existing.pending_result if existing else None,
         profile_session=existing.profile_session if existing and keep_session else None,
         profile_session_started=existing.profile_session_started if existing and keep_session else None,
-        pcd=existing.pcd if existing and pcd is None else pcd,
+        audiences={**(existing.audiences if existing else {}), **(audiences or {})},
     )
     users.save(user)
     PortalAudience().sync(user)
@@ -68,9 +91,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not workspace.is_dir():
             print(f"error: workspace folder not found: {workspace}", file=sys.stderr)
             return 1
-        pcd = None if args.pcd is None else args.pcd == "sim"
+        audiences = dict(args.portal)
+        if args.pcd is not None:
+            audiences["pcd"] = args.pcd == "sim"
         user = add_user(
-            settings, args.chat_id, args.name, workspace, True if args.profile_ready else None, pcd
+            settings, args.chat_id, args.name, workspace, True if args.profile_ready else None, audiences
         )
         state = "ready" if user.profile_ready else "not ready"
         print(f"registered {user.name} ({user.chat_id}), profile {state}")

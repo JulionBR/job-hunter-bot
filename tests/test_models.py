@@ -70,6 +70,7 @@ def test_job_legacy_keys_to_english() -> None:
         "deadline": "",
         "status": "aguardando",
         "date": "01/02",
+        "source": "",
     }
     assert Job.from_dict(job.to_dict(), "abc") == job
 
@@ -109,3 +110,35 @@ def test_user_profile_session_round_trip_and_legacy_files() -> None:
     user = User.from_dict("2002", {"name": "Ana", "workspace": "/w", "profile_session": "abc"})
     assert user.profile_session == "abc"
     assert user.to_dict()["profile_session"] == "abc"
+
+
+def test_shortlist_source_is_kept_and_shown_on_the_card() -> None:
+    from jobbot import messages
+
+    job = Job.from_shortlist({"url": "https://x/1", "title": "T", "source": "Himalayas (himalayas.app)"})
+    assert job is not None and job.source == "Himalayas (himalayas.app)"
+    assert Job.from_dict(job.to_dict()).source == job.source
+    assert 'via <a href="https://himalayas.app">Himalayas</a>' in messages.job_card(job)
+    plain = Job.from_shortlist({"url": "https://x/2", "title": "T"})
+    assert plain is not None and " via " not in messages.job_card(plain)
+
+
+def test_card_credit_links_himalayas_and_escapes_other_sources() -> None:
+    from jobbot import messages
+
+    link = 'via <a href="https://himalayas.app">Himalayas</a>'
+    by_url = Job.from_shortlist({"url": "https://himalayas.app/jobs/x", "title": "T"})
+    assert by_url is not None and link in messages.job_card(by_url)
+    sub = Job.from_shortlist({"url": "https://www.himalayas.app/jobs/x", "title": "T", "source": "x"})
+    assert sub is not None and link in messages.job_card(sub) and "via x" not in messages.job_card(sub)
+    named = Job.from_shortlist({"url": "https://x/1", "title": "T", "source": "HIMALAYAS jobs"})
+    assert named is not None and link in messages.job_card(named)
+    lookalike = Job.from_shortlist({"url": "https://nothimalayas.app/1", "title": "T", "source": "A<b>"})
+    assert lookalike is not None and "via A&lt;b&gt;" in messages.job_card(lookalike)
+
+
+def test_card_survives_a_malformed_url() -> None:
+    from jobbot import messages
+
+    job = Job.from_shortlist({"url": "https://[abc", "title": "T", "source": "Gupy"})
+    assert job is not None and "via Gupy" in messages.job_card(job)

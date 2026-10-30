@@ -18,8 +18,9 @@ def skill(workspace: Path, name: str, text: str) -> Path:
     return path
 
 
-def user(workspace: Path, pcd: bool | None) -> User:
-    return User(ALICE, "Alice", workspace, pcd=pcd)
+def user(workspace: Path, pcd: bool | None, **tags: bool) -> User:
+    audiences = dict(tags) if pcd is None else {"pcd": pcd, **tags}
+    return User(ALICE, "Alice", workspace, audiences=audiences)
 
 
 def test_inserts_enabled_after_audience(tmp_path: Path) -> None:
@@ -113,10 +114,27 @@ def test_approve_creates_user_with_pcd_false(env: Env) -> None:
     assert created is not None and created.pcd is False
 
 
+def test_approve_turns_off_every_audience_the_reference_folder_carries(env: Env) -> None:
+    create = env.provisioner.create_folder
+
+    def with_portals(workspace: Path) -> None:
+        create(workspace)
+        skill(workspace, "dev-search", TI_SKILL.replace("enabled: false", "enabled: true"))
+        skill(workspace, "inklua-search", PCD_SKILL.format(extra="enabled: true\n"))
+
+    env.provisioner.create_folder = with_portals  # type: ignore[method-assign]
+    env.message(BOB, "oi")
+    env.callback(ADMIN, f"ok:{BOB}")
+    created = env.app.users.get(BOB)
+    assert created is not None and created.audiences == {"pcd": False, "ti": False}
+    for name in ("dev-search", "inklua-search"):
+        assert "enabled: false" in (created.workspace / ".agents/skills" / name / "SKILL.md").read_text()
+
+
 def test_run_for_syncs_before_claude(env: Env) -> None:
     workspace = env.add_candidate()
     path = skill(workspace, "inklua-search", PCD_SKILL.format(extra="enabled: true\n"))
-    env.app.users.update(ALICE, lambda u: setattr(u, "pcd", False))
+    env.app.users.update(ALICE, lambda u: u.audiences.__setitem__("pcd", False))
     seen: list[str] = []
     env.claude.on_run = lambda prompt, cwd: seen.append(path.read_text())
     env.app.search.run()
@@ -126,20 +144,20 @@ def test_run_for_syncs_before_claude(env: Env) -> None:
 def test_users_summary_shows_pcd(env: Env) -> None:
     env.add_candidate()
     env.add_candidate(BOB, "Bob")
-    env.app.users.update(BOB, lambda u: setattr(u, "pcd", True))
+    env.app.users.update(BOB, lambda u: u.audiences.__setitem__("pcd", True))
     env.message(ADMIN, "/usuarios")
     text = env.telegram.last(ADMIN)
     assert "PcD: ?" in text
     assert "PcD: sim" in text
-    env.app.users.update(BOB, lambda u: setattr(u, "pcd", False))
+    env.app.users.update(BOB, lambda u: u.audiences.__setitem__("pcd", False))
     env.message(ADMIN, "/usuarios")
     assert "PcD: não" in env.telegram.last(ADMIN)
 
 
 def test_pcd_serialisation() -> None:
-    assert "pcd" not in User(1, "a", Path("/w")).to_dict()
+    assert "audiences" not in User(1, "a", Path("/w")).to_dict()
     assert User.from_dict(1, {"name": "a"}).pcd is None
-    assert User.from_dict(1, User(1, "a", Path("/w"), pcd=False).to_dict()).pcd is False
+    assert User.from_dict(1, User(1, "a", Path("/w"), audiences={"pcd": False}).to_dict()).pcd is False
 
 
 def test_add_user_pcd_flag_and_preserve(tmp_path: Path) -> None:
@@ -148,9 +166,9 @@ def test_add_user_pcd_flag_and_preserve(tmp_path: Path) -> None:
     path = skill(workspace, "inklua-search", PCD_SKILL.format(extra="enabled: true\n"))
     assert add_user(settings, 5, "Eve", workspace, True).pcd is None
     assert "enabled: true" in path.read_text()
-    assert add_user(settings, 5, "Eve", workspace, True, True).pcd is True
+    assert add_user(settings, 5, "Eve", workspace, True, {"pcd": True}).pcd is True
     assert add_user(settings, 5, "Eve", workspace, True).pcd is True
-    assert add_user(settings, 5, "Eve", workspace, True, False).pcd is False
+    assert add_user(settings, 5, "Eve", workspace, True, {"pcd": False}).pcd is False
     assert "enabled: false" in path.read_text()
 
 
@@ -222,7 +240,7 @@ def test_run_for_uses_reloaded_user(env: Env) -> None:
     path = skill(workspace, "inklua-search", PCD_SKILL.format(extra="enabled: false\n"))
     stale = env.app.users.get(ALICE)
     assert stale is not None and stale.pcd is None
-    env.app.users.update(ALICE, lambda u: setattr(u, "pcd", True))
+    env.app.users.update(ALICE, lambda u: u.audiences.__setitem__("pcd", True))
     env.app.search.run_for(stale, True)
     assert "enabled: true" in path.read_text()
 
@@ -238,3 +256,96 @@ def test_approve_syncs_new_workspace(env: Env) -> None:
     created = env.app.users.get(BOB)
     assert created is not None
     assert "enabled: false" in (created.workspace / ".agents/skills/inklua-search/SKILL.md").read_text()
+
+
+TI_SKILL = "---\nname: dev-search\naudience: ti\nenabled: false\n---\nbody\n"
+
+
+def test_legacy_pcd_key_migrates_and_is_rewritten_as_audiences() -> None:
+    migrated = User.from_dict(1, {"name": "a", "pcd": True})
+    assert migrated.audiences == {"pcd": True} and migrated.pcd is True
+    data = migrated.to_dict()
+    assert data["audiences"] == {"pcd": True} and "pcd" not in data
+    assert User.from_dict(1, {"audiences": {"pcd": False}, "pcd": True}).pcd is False
+    assert User.from_dict(1, {"audiences": {"ti": "sim", "x": 1, "pcd": True}}).audiences == {"pcd": True}
+    assert User.from_dict(1, {"audiences": ["pcd"]}).audiences == {}
+
+
+def test_ti_tag_turns_only_ti_portals_and_absent_tag_is_untouched(tmp_path: Path) -> None:
+    ti = skill(tmp_path, "dev-search", TI_SKILL)
+    pcd = skill(tmp_path, "inklua-search", PCD_SKILL.format(extra="enabled: true\n"))
+    assert PortalAudience().sync(user(tmp_path, None, ti=True)) == 1
+    assert "enabled: true" in ti.read_text()
+    assert "enabled: true" in pcd.read_text()  # pcd not in audiences: untouched
+    PortalAudience().sync(user(tmp_path, False, ti=True))
+    assert "enabled: false" in pcd.read_text() and "enabled: true" in ti.read_text()
+    assert PortalAudience().sync(user(tmp_path, False), "ti") == 0  # tag not set for this user
+    assert PortalAudience().sync(user(tmp_path, False, ti=False), "ti") == 1
+    assert "enabled: false" in ti.read_text()
+
+
+def test_admin_portal_command(env: Env) -> None:
+    ws = env.add_candidate()
+    ti = skill(ws, "dev-search", TI_SKILL)
+    env.message(ADMIN, f"/portal {ALICE} ti sim")
+    assert env.app.users.get(ALICE).audiences == {"ti": True}  # type: ignore[union-attr]
+    assert "enabled: true" in ti.read_text()
+    assert "ti sim, 1 portal(is) ti ligados" in env.telegram.last(ADMIN)
+    env.message(ADMIN, f"/portal {ALICE} novo nao")
+    assert "novo não gravado, mas nenhum portal novo instalado na pasta" in env.telegram.last(ADMIN)
+    env.message(ADMIN, f"/pcd {ALICE} sim")
+    assert env.app.users.get(ALICE).audiences == {"ti": True, "novo": False, "pcd": True}  # type: ignore[union-attr]
+
+
+def test_admin_portal_bad_usage(env: Env) -> None:
+    env.add_candidate()
+    for arg in (
+        "",
+        f"{ALICE}",
+        f"{ALICE} ti",
+        f"{ALICE} ti talvez",
+        f"{ALICE} TI_x sim",
+        f"{ALICE} sim",
+        "999 ti sim",
+    ):
+        env.message(ADMIN, f"/portal {arg}".strip())
+        assert env.telegram.last(ADMIN).startswith("Uso: /portal")
+    assert env.app.users.get(ALICE).audiences == {}  # type: ignore[union-attr]
+
+
+def test_users_summary_shows_tags(env: Env) -> None:
+    env.add_candidate()
+    env.app.users.update(ALICE, lambda u: u.audiences.update({"ti": True, "x": False}))
+    env.message(ADMIN, "/usuarios")
+    assert "PcD: ? · ti: sim · x: não" in env.telegram.last(ADMIN)
+
+
+def test_add_user_portal_flag(tmp_path: Path) -> None:
+    from jobbot.__main__ import build_parser
+
+    args = build_parser().parse_args(
+        [
+            "add-user",
+            "--chat-id",
+            "5",
+            "--name",
+            "E",
+            "--workspace",
+            "/w",
+            "--portal",
+            "ti=sim",
+            "--portal",
+            "x=nao",
+        ]
+    )
+    assert dict(args.portal) == {"ti": True, "x": False}
+    settings = Settings(home=tmp_path, telegram_token="x", admin_ids=frozenset())
+    workspace = tmp_path / "w"
+    ti = skill(workspace, "dev-search", TI_SKILL)
+    user_ = add_user(settings, 5, "Eve", workspace, True, dict(args.portal))
+    assert user_.audiences == {"ti": True, "x": False} and "enabled: true" in ti.read_text()
+    assert add_user(settings, 5, "Eve", workspace, True, {"pcd": True}).audiences == {
+        "ti": True,
+        "x": False,
+        "pcd": True,
+    }

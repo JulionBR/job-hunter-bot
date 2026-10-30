@@ -10,9 +10,9 @@ def job(title: str, company: str) -> Job:
 
 def test_prompt_without_rejected_is_byte_identical_to_the_previous_one() -> None:
     digest = hashlib.sha256(search_prompt(5).encode()).hexdigest()
-    assert digest == "f217a5fd7d41cc8b28ce32b57eae4e1f004bc469996793ada68bc479c37818a5"
+    assert digest == "8051b5311d41e434424d613ad99cc670dca980559f5848faf8bc62da4c036350"
     assert search_prompt(5, []) == search_prompt(5, ())
-    assert hashlib.sha256(search_prompt(3).encode()).hexdigest().startswith("2a5a028a")
+    assert hashlib.sha256(search_prompt(3).encode()).hexdigest().startswith("5d0ae6a2")
 
 
 def test_rejected_block_is_appended_with_header_and_lines() -> None:

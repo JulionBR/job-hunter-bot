@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,13 @@ def _text(value: Any) -> str:
     return "" if value is None else str(value)
 
 
+def _audiences(raw: Any) -> dict[str, bool]:
+    """Keep only ``tag: bool`` pairs; anything else in users.json is ignored."""
+    if not isinstance(raw, Mapping):
+        return {}
+    return {str(k).lower(): v for k, v in raw.items() if isinstance(v, bool)}
+
+
 @dataclass
 class User:
     chat_id: int
@@ -46,14 +53,22 @@ class User:
     pending_result: str | None = None
     profile_session: str | None = None  # UUID of the open /perfil conversation (survives restarts)
     profile_session_started: str | None = None  # ISO timestamp; old sessions expire
-    pcd: bool | None = None  # None = unknown: the bot leaves the PcD portals untouched
+    # audience tag -> on/off; a missing tag means unknown: the bot leaves those portals untouched
+    audiences: dict[str, bool] = field(default_factory=dict)
+
+    @property
+    def pcd(self) -> bool | None:
+        return self.audiences.get("pcd")
 
     @classmethod
     def from_dict(cls, chat_id: int | str, data: Mapping[str, Any]) -> User:
         pending = _pick(data, "pending_result", "resultado_pendente", None)
         session = data.get("profile_session")
         started = data.get("profile_session_started")
-        pcd = data.get("pcd")
+        audiences = _audiences(data.get("audiences"))
+        legacy = data.get("pcd")
+        if isinstance(legacy, bool):
+            audiences.setdefault("pcd", legacy)
         return cls(
             chat_id=int(chat_id),
             name=_text(_pick(data, "name", "nome")),
@@ -64,7 +79,7 @@ class User:
             pending_result=None if pending is None else str(pending),
             profile_session=None if session is None else str(session),
             profile_session_started=None if started is None else str(started),
-            pcd=pcd if isinstance(pcd, bool) else None,
+            audiences=audiences,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,8 +97,8 @@ class User:
             data["profile_session"] = self.profile_session
         if self.profile_session_started is not None:
             data["profile_session_started"] = self.profile_session_started
-        if self.pcd is not None:
-            data["pcd"] = self.pcd
+        if self.audiences:
+            data["audiences"] = dict(self.audiences)
         return data
 
 
@@ -120,6 +135,7 @@ class Job:
     deadline: str = ""
     status: JobStatus = JobStatus.NEW
     date: str = ""
+    source: str = ""  # portal credit shown on the card (Himalayas' terms require it)
 
     @staticmethod
     def id_for(url: str) -> str:
@@ -148,6 +164,7 @@ class Job:
             deadline=_text(_pick(item, "deadline", "prazo")),
             status=JobStatus.NEW,
             date="",
+            source=_text(_pick(item, "source", "fonte")),
         )
 
     @classmethod
@@ -175,6 +192,7 @@ class Job:
             deadline=_text(_pick(data, "deadline", "prazo")),
             status=status,
             date=_text(_pick(data, "date", "data")),
+            source=_text(data.get("source")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -190,4 +208,5 @@ class Job:
             "deadline": self.deadline,
             "status": str(self.status),
             "date": self.date,
+            "source": self.source,
         }

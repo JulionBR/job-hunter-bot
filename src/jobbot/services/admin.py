@@ -123,7 +123,7 @@ class AdminService:
                 u.profile_ready,
                 self._profile.is_active(u.chat_id),
                 self.status_counts(u.chat_id),
-                u.pcd,
+                u.audiences,
             )
             for u in users
         )

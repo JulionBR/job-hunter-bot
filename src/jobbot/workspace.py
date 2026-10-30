@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Protocol
@@ -109,8 +109,22 @@ def _split_eol(line: str) -> tuple[str, str]:
     return body, line[len(body) :]
 
 
-def _set_enabled(text: str, audience: str, enabled: bool) -> tuple[bool, str | None]:
-    """Set the frontmatter ``enabled:`` line(s) of a portal that targets ``audience``.
+def _audience_tag(text: str) -> str | None:
+    """The ``audience:`` tag of a portal's frontmatter, or None (same tolerance as ``_set_enabled``)."""
+    lines = text.removeprefix(BOM).splitlines()
+    if not lines or lines[0].strip() != FRONTMATTER_FENCE:
+        return None
+    for line in lines[1:]:
+        if line.strip() == FRONTMATTER_FENCE:
+            return None
+        match = _AUDIENCE_LINE.match(line)
+        if match:
+            return _scalar(match.group("value")) or None
+    return None
+
+
+def _set_enabled(text: str, audiences: Mapping[str, bool]) -> tuple[bool, str | None]:
+    """Set the frontmatter ``enabled:`` line(s) of a portal whose ``audience:`` tag is in ``audiences``.
 
     Returns ``(is_portal, new_text)``; ``new_text`` is None when nothing has to change. Only the
     ``enabled:`` value changes (trailing comment and line endings are kept); a missing line is inserted
@@ -124,11 +138,14 @@ def _set_enabled(text: str, audience: str, enabled: bool) -> tuple[bool, str | N
     if end is None:
         return False, None
     aud = None
+    enabled = False
     for i in range(1, end):
         match = _AUDIENCE_LINE.match(lines[i])
-        if match and _scalar(match.group("value")) == audience:
-            aud = i
-            break
+        if match:
+            tag = _scalar(match.group("value"))
+            if tag in audiences:
+                aud, enabled = i, audiences[tag]
+                break
     if aud is None:
         return False, None
     word = "true" if enabled else "false"
@@ -166,42 +183,63 @@ def _write_atomic(path: Path, text: str) -> None:
         raise
 
 
+def _portal_files(workspace: Path, chat_id: int) -> Iterator[tuple[Path, str]]:
+    """Yield ``(SKILL.md, text)`` of every readable portal in the workspace, skipping symlinks."""
+    agents = workspace / ".agents"
+    skills = agents / "skills"
+    for folder in (agents, skills):
+        if folder.is_symlink():
+            log.warning(f"portais {chat_id}: {folder} é symlink, ignorado")
+            return
+    if not skills.is_dir():
+        return
+    for skill in sorted(skills.glob("*/SKILL.md")):
+        if skill.parent.is_symlink() or skill.is_symlink():
+            log.warning(f"portal {skill} é symlink, ignorado")
+            continue
+        try:
+            with skill.open(encoding="utf-8", newline="") as f:
+                yield skill, f.read()
+        except (OSError, UnicodeError) as ex:
+            log.warning(f"portal {skill} ignorado: {ex}")
+
+
 class PortalAudience:
     """Turns audience-restricted portals on or off per candidate.
 
     A portal declares ``audience: <x>`` in the frontmatter of its ``.agents/skills/<portal>/SKILL.md``;
-    ``/scrape`` skips it when the frontmatter has ``enabled: false``. Only ``pcd`` exists for now.
+    ``/scrape`` skips it when the frontmatter has ``enabled: false``. Tags are free-form (``pcd``, ``ti``...);
+    a tag the user has no value for is left alone.
     """
 
-    def sync(self, user: User) -> int:
-        """Apply ``user.pcd`` to the PcD portals of the workspace; returns how many portals were found.
+    def tags(self, workspace: Path, chat_id: int = 0) -> set[str]:
+        """Every ``audience:`` tag declared by the portals installed in ``workspace``."""
+        found: set[str] = set()
+        for _, text in _portal_files(workspace, chat_id):
+            tag = _audience_tag(text)
+            if tag:
+                found.add(tag)
+        return found
 
-        Unknown (None) leaves everything alone and returns 0.
+    def sync(self, user: User, only: str | None = None) -> int:
+        """Apply ``user.audiences`` to the matching portals of the workspace; returns how many were found.
+
+        ``only`` restricts the pass to one tag. Tags the user has no value for are left alone (count 0).
         """
-        if user.pcd is None:
-            return 0
-        agents = user.workspace / ".agents"
-        skills = agents / "skills"
-        for folder in (agents, skills):
-            if folder.is_symlink():
-                log.warning(f"portais {user.chat_id}: {folder} é symlink, ignorado")
-                return 0
-        if not skills.is_dir():
+        audiences = dict(user.audiences)
+        if only is not None:
+            audiences = {only: audiences[only]} if only in audiences else {}
+        if not audiences:
             return 0
         count = 0
-        for skill in sorted(skills.glob("*/SKILL.md")):
-            if skill.parent.is_symlink() or skill.is_symlink():
-                log.warning(f"portal {skill} é symlink, ignorado")
-                continue
+        for skill, text in _portal_files(user.workspace, user.chat_id):
             try:
-                with skill.open(encoding="utf-8", newline="") as f:
-                    text = f.read()
-                is_portal, updated = _set_enabled(text, "pcd", user.pcd)
+                is_portal, updated = _set_enabled(text, audiences)
                 if is_portal:
                     count += 1
                 if updated is not None:
                     _write_atomic(skill, updated)
-                    log.info(f"portal {skill.parent.name} {user.chat_id}: enabled={user.pcd}")
+                    log.info(f"portal {skill.parent.name} {user.chat_id}: audiences={audiences}")
             except (OSError, UnicodeError) as ex:
                 log.warning(f"portal {skill} ignorado: {ex}")
         return count

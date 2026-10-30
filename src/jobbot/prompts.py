@@ -67,8 +67,10 @@ SEARCH_PROMPT = """Rodada automática, sem ninguém para responder: não faça p
 2. Rode /rank (.claude/commands/rank.md) para pontuar as vagas novas.
 3. Grave em .jobbot-shortlist.json um array JSON (apenas o JSON) com as até {top_n} melhores vagas
    novas desta rodada, da maior para a menor aderência, excluindo as vetadas por deal-breakers.
-   Cada item: {{"title","company","location","url","score","strengths","gaps","deadline"}}.
+   Cada item: {{"title","company","location","url","score","strengths","gaps","deadline","source"}}.
    Textos curtos em português; "score" como texto (ex.: "8/10"); "deadline" vazio se não houver.
+   "source": o portal de origem (ex.: "LinkedIn", "Gupy"); para vagas do himalayas-search use exatamente
+   "Himalayas (himalayas.app)" e a url do applicationLink (exigência dos termos do Himalayas).
    Se o perfil disser que a pessoa aceita vagas afirmativas PcD, conte isso a favor, sem filtrar só elas.
    Se não houver vagas novas, grave []. Se a busca não rodar direito (permissão negada, portal fora do ar,
    nenhuma consulta concluída), NÃO grave o arquivo: assim o sistema registra a falha em vez de "0 vagas".

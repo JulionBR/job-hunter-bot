@@ -84,7 +84,7 @@ class AccessService:
             self._telegram.send_message(chat, messages.joined_as_candidate(self._settings.delivery_hour))
 
     def _enroll(self, chat: int, name: str) -> User | None:
-        """Create the workspace folder, register the candidate and sync the PcD portals.
+        """Create the workspace folder, register the candidate and switch every audience portal off.
 
         On a provisioning failure the admins are warned and nobody is registered (returns None).
         """
@@ -95,7 +95,11 @@ class AccessService:
             log.error(f"create_folder {chat} erro: {ex}")
             self._notifier.notify(messages.folder_failed(name, ex))
             return None
-        user = User(chat, name, workspace, profile_ready=False, since=self._clock.today(), pcd=False)
+        # The reference folder may carry portals switched on for someone else: start every tag off.
+        audiences = {tag: False for tag in self._portals.tags(workspace, chat)} | {"pcd": False}
+        user = User(
+            chat, name, workspace, profile_ready=False, since=self._clock.today(), audiences=audiences
+        )
         self._users.save(user)
         self._portals.sync(user)
         return user

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import html
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from urllib.parse import urlsplit
 
 from jobbot.models import Job, JobStatus
 
@@ -18,6 +19,7 @@ ADMIN_CMDS: list[tuple[str, str]] = [
     ("saude", "estado do bot, fila e próxima busca"),
     ("remover", "remover candidato: /remover ID"),
     ("pcd", "portais PcD: /pcd ID sim|nao"),
+    ("portal", "portais por público: /portal ID tag sim|nao"),
 ]
 USER_CMDS: list[tuple[str, str]] = [
     ("perfil", "montar ou atualizar seu perfil"),
@@ -71,16 +73,23 @@ ADMIN_HELP = "Comandos de admin:\n" + command_list(ADMIN_CMDS)
 NO_PENDING = "Nenhum pedido pendente."
 NO_USERS = "Nenhum candidato."
 REMOVE_USAGE = "Uso: /remover ID (veja os IDs em /usuarios)."
+PORTAL_USAGE = "Uso: /portal ID tag sim|nao (tag: letras, números e hífen; IDs em /usuarios)."
 PCD_USAGE = "Uso: /pcd ID sim|nao (veja os IDs em /usuarios)."
 
 
-def pcd_set(name: str, pcd: bool, portals: int) -> str:
+def audience_label(tag: str) -> str:
+    return "PcD" if tag == "pcd" else tag
+
+
+def portal_set(name: str, tag: str, on: bool, portals: int) -> str:
+    label = audience_label(tag)
+    answer = "sim" if on else "não"
     if not portals:
         return (
-            f"{esc(name)}: PcD {'sim' if pcd else 'não'} gravado, mas nenhum portal PcD instalado na pasta."
+            f"{esc(name)}: {esc(label)} {answer} gravado, mas nenhum portal {esc(label)} instalado na pasta."
         )
-    state = "ligados" if pcd else "desligados"
-    return f"{esc(name)}: PcD {'sim' if pcd else 'não'}, {portals} portal(is) PcD {state}."
+    state = "ligados" if on else "desligados"
+    return f"{esc(name)}: {esc(label)} {answer}, {portals} portal(is) {esc(label)} {state}."
 
 
 def approval_keyboard(chat: int | str) -> Keyboard:
@@ -179,12 +188,24 @@ def new_jobs_header(count: int, today: str) -> str:
     return f"🔎 <b>{count} vaga(s) nova(s) — {today}</b>"
 
 
+def _credit(job: Job) -> str:
+    """`` · via <portal>``; Himalayas' terms require a link back to himalayas.app."""
+    try:
+        host = (urlsplit(job.url).hostname or "").lower()
+    except ValueError:  # the url comes from Claude's shortlist: a malformed one must not break delivery
+        host = ""
+    if host == "himalayas.app" or host.endswith(".himalayas.app") or "himalayas" in job.source.lower():
+        return ' · via <a href="https://himalayas.app">Himalayas</a>'
+    return f" · via {esc(job.source)}" if job.source else ""
+
+
 def job_card(job: Job) -> str:
     deadline = f"\n⏰ Prazo: {esc(job.deadline)}" if job.deadline else ""
+    source = _credit(job)
     return (
         f"<b>{esc(job.title)}</b>\n🏢 {esc(job.company)} · 📍 {esc(job.location)}\n"
         f"⭐ Combina com você: {esc(job.score)}\n✅ {esc(job.strengths)}\n⚠️ {esc(job.gaps)}{deadline}\n"
-        f'🔗 <a href="{esc(job.url)}">Abrir vaga</a>'
+        f'🔗 <a href="{esc(job.url)}">Abrir vaga</a>{source}'
     )
 
 
@@ -296,14 +317,29 @@ def status_line(counts: dict[str, int]) -> str:
     return "📊 " + (status_counts(counts) or "nenhuma vaga ainda")
 
 
+def audience_summary(audiences: Mapping[str, bool]) -> str:
+    """``PcD: sim · ti: não``: PcD always shown (``?`` when unknown), other tags only when set."""
+    pcd = audiences.get("pcd")
+    parts = [f"PcD: {'?' if pcd is None else 'sim' if pcd else 'não'}"]
+    parts += [
+        f"{esc(tag)}: {'sim' if on else 'não'}" for tag, on in sorted(audiences.items()) if tag != "pcd"
+    ]
+    return " · ".join(parts)
+
+
 def user_line(
-    name: str, chat: int, ready: bool, chatting: bool, counts: dict[str, int], pcd: bool | None = None
+    name: str,
+    chat: int,
+    ready: bool,
+    chatting: bool,
+    counts: dict[str, int],
+    audiences: Mapping[str, bool] | None = None,
 ) -> str:
+    audiences = audiences or {}
     return (
         f"• <b>{esc(name)}</b> <code>{chat}</code> — perfil {'✅' if ready else '⏳'}"
         f"{' (conversando)' if chatting else ''}"
-        f" · PcD: {'?' if pcd is None else 'sim' if pcd else 'não'}\n  "
-        + (status_counts(counts) or "sem vagas ainda")
+        f" · {audience_summary(audiences)}\n  " + (status_counts(counts) or "sem vagas ainda")
     )
 
 
